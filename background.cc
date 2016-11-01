@@ -1,4 +1,18 @@
+// Modified by Clement Leloup 05-10-2016 :
+// Changed name of dtauda to arrays
+// Added the function hofa
+// Added three global vectors intvar, hubble and x and modified everything to take it into account
+// Moved common parameters to global
+// Modified by Clement Leloup 29-09-2016 :
+// Made the code a little more C-like (removing strings in favor of char*)
+// Modified main and dtauda
+// Changed type of readParamsFile type to array of char*
+// Added the dotphi parameter
+// Cleaned a little
+// Modified by Clement Leloup 27-09-2016 :
+// Changed type of dtauda to double array (here double pointer)
 // Modified by Clement Leloup 22-07-2016 :
+// Added the function dtauda to be linked with CAMB
 // Cleaned a little
 // Added the function readParamsFile
 // Modified main
@@ -28,25 +42,48 @@
 #include <math.h>
 #include "string.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 using namespace std;
 
-std::vector<std::string> readParamsFile(std::string filename){
 
-  std::vector<std::string> params(12, "");
-  std::string* param = 0;
-  
-  std::ifstream file;
-  std::string line;
+// Types of solving method
+enum solvmethod {JNEVEUz, JNEVEUa, BARREIRA};
+
+// Global vectors of the integration variable (a or z), h and x
+std::vector<double> intvar;
+std::vector<double> hubble;
+std::vector<double> x;
+
+// Global galileon parameters
+solvmethod coord = JNEVEUz;
+double om = 0;
+double c2 = 0;
+double c3 = 0;
+double c4 = 0;
+double c5 = 0;
+double cG = 0;
+double c0 = 0;
+double orad = 0;
+
+
+
+// Function to read parameters from a file
+char** readParamsFile(const char* filename){
+
+  static char* params[14];
+  char** param = NULL;
+
+  char* line = NULL;
+  size_t len = 0;
   const char* com = "#";
-  file.open(filename.c_str());
-  if(file.is_open()){
-    while(!file.eof()){
-      getline(file,line);      
-      if(line != ""){	
-	if(strncmp(line.c_str(), com, strlen(com)) != 0){
-	  char input[strlen(line.c_str())];
-	  strcpy(input,line.c_str());
+  FILE* stream = fopen(filename, "r");
+  if(stream != NULL){
+    while(getline(&line, &len, stream) != -1){
+      if(line != NULL){
+	if(line[0] != com[0]){
+	  char input[strlen(line)];
+	  strcpy(input,line);
 	  char* token = strtok(input, " =#");
 	  if(string(token) == "c2"){
 	    param = &params[0];
@@ -64,30 +101,38 @@ std::vector<std::string> readParamsFile(std::string filename){
 	    param = &params[6];
 	  } else if(string(token) == "age"){
 	    param = &params[7];
-	  } else if(string(token) == "om"){
+	  } else if(string(token) == "ombh2"){
 	    param = &params[8];
-	  } else if(string(token) == "orad"){
+	  } else if(string(token) == "omch2"){
 	    param = &params[9];
-	  }  else if(string(token) == "name"){
+	  } else if(string(token) == "solvingMethod"){
 	    param = &params[10];
-	  } else if(string(token) == "barreira"){
+	  } else if(string(token) == "dotphi"){
 	    param = &params[11];
+	  } else if(string(token) == "hubble"){
+	    param = &params[12];
+	  } else if(string(token) == "output_root"){
+	    param = &params[13];
 	  }
 	  token = strtok(NULL, " =");
 	  if(token!=NULL){
 	    
-	    std::string str = token;
+	    char* ch = token;
 	    if(param != NULL){
-	      *param = str;
+	      *param = (char*)malloc(sizeof(char)*strlen(ch));
+	      strcpy(*param,ch);
 	      param = 0;
-	    }
+	      }
 	  }
 	}
       }
     }
+    if(line) free(line);
   }
-  
-  //std::cout << "c2 = " << params[0] << "\n" << "c3 = " << params[1] << "\n" << "c4 = " << params[2] << "\n" << "c5 = " << params[3] << "\n" << "c0 = " << params[4] << "\n" << "cG = " << params[5] << "\n" << "ratio_rho = " << params[6] << "\n" << "age = " << params[7] << "\n" << "om = " << params[8] << "\n" << "orad = " << params[9] << "\n" << "name = " << params[10] << "\n" << "barreira = " << params[11] << "\n";
+
+  // for(int i = 0; i < 13; i++){
+  //   std::cout << "param " << i << " = " << params[i] << endl;;
+  // }
 
   return params;
   
@@ -104,18 +149,11 @@ int calcValOmC2C3C4C5CGC0(double z, const double y[3], double f[3], void* params
 
   double alpha,gamma,beta,sigma,lambda,omega,OmegaP,OmegaM,OmTest;
   const double *in_params = static_cast<const double*>(params);
-  double om = in_params[0];
-  double c2 = in_params[1];
-  double c3 = in_params[2];
-  double c4 = in_params[3];
-  double c5 = in_params[4];
-  double cG = in_params[5];
-  double c0 = in_params[6];
-  double orad = in_params[7];
-  bool useacoord = (int)in_params[8];
+  bool useacoord = (int)in_params[0];
   double *OmegaPiOverOrad = NULL;
-  if(useacoord) OmegaPiOverOrad = const_cast<double*>(&in_params[9]);
-  if (useacoord) std::cout << "Using a instead of z" << std::endl; 
+  if(useacoord) OmegaPiOverOrad = const_cast<double*>(&in_params[8]);
+
+  //if (useacoord) std::cout << "Using a instead of z" << std::endl; 
   double zpo;
   double a=1;
   if(!useacoord){
@@ -145,15 +183,6 @@ int calcValOmC2C3C4C5CGC0(double z, const double y[3], double f[3], void* params
     OmegaM = 1 - OmegaP - orad/(pow(a,4)*h2);
     OmTest = om/(pow(a,3)*h2);
   }
-  if(fabs(OmegaM - OmTest)>1e-5){
-    std::cout<<z<<" "<<om<<" "<<c2<<" "<<c3<<" "<<c4<<" "<<c5<<" "<<cG<<" "<<c0<<" "<<OmTest<<" "<<OmegaM<<" "<<OmegaP<<" "<<fabs(OmegaM - OmTest)<<std::endl;
-    return 4;
-  }
-  if(OmegaP<0) return 5;
-  // if ( useacoord && OmegaP>0.1 && abs(1/z-1000.0)<1e-8  ){
-  //    std::cout<<"Warning : OmegaP is more than 10% of Omega_tot at z=1000 : OmegaP="<<OmegaP<<"\n\t with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<std::endl;
-  //    std::cout<<"\tBeware of theoretical validity of some computations!"<<std::endl;
-  //  }
 
   // The equations : 
   alpha = -3*c3*h*prod2 + 15*c4*h2*prod3 + c0*h + c2/6.0*prod - 17.5*c5*h3*prod4 - 3.0*cG*h2*prod;
@@ -208,14 +237,18 @@ int calcValOmC2C3C4C5CGC0(double z, const double y[3], double f[3], void* params
 		       \status = 6 : noghost condition not satisfied
 		       \status = 7 : imaginary speed of sound
 		       \status = 8 : failed to integrate
+		       \status = 9 : one of the global vectors is empty
 */
-int calcHubbleGalileon(std::vector<double>& hubble, std::vector<double>& x, const std::vector<double>& zcoord, double om, double orad, double c2, double c3, double c4, double c5, double cG, double c0, double coord){
+int calcHubbleGalileon(){
 
-  double params[10];
-  params[0] = om; params[1] = c2; params[2] = c3;
-  params[3] = c4; params[4] = c5; params[5] = cG;
-  params[6] = c0; params[7] = orad; params[8] = coord; params[9] = 0; 
-  bool useacoord = (int)params[8];
+  if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return 9;
+  }
+
+  double params[1];
+  bool useacoord = (coord == BARREIRA || coord == JNEVEUa);
+  params[0] = (int)useacoord;
 
   const gsl_odeiv_step_type * T = gsl_odeiv_step_rkf45;
   gsl_odeiv_step * s = gsl_odeiv_step_alloc(T, 3);
@@ -234,9 +267,17 @@ int calcHubbleGalileon(std::vector<double>& hubble, std::vector<double>& x, cons
     double zcurrtarg;
     int st;
     for(int i = 0; i < nstep; ++i){
-      zcurrtarg = zcoord[i];
+      zcurrtarg = intvar[i];
       while(z > zcurrtarg){
 	st = gsl_odeiv_evolve_apply(e, c, s, &sys, &z, zcurrtarg, &h, y);
+	double OmegaP = (0.5*c2*pow(y[0], 2)*pow(intvar[i]*y[1], 2) - 6*c3*pow(y[0], 4)*pow(intvar[i]*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(intvar[i]*y[1], 4) - 21*c5*pow(y[0], 8)*pow(intvar[i]*y[1], 5) - 9*cG*pow(y[0], 4)*pow(intvar[i]*y[1], 2))/(3.0*pow(y[0], 2)) ;
+	double OmegaM = 1 - OmegaP - orad/(pow(intvar[i],4)*pow(y[0], 2));
+	double OmTest = om/(pow(intvar[i],3)*pow(y[0], 2));
+	if(OmegaP<0) st = 5;
+	if ( fabs(OmegaM - OmTest)>1e-4  ) {
+	  printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+	  st = 4;
+	}
 	if(st != 0){
 	  gsl_odeiv_evolve_free(e);
 	  gsl_odeiv_control_free(c);
@@ -248,7 +289,8 @@ int calcHubbleGalileon(std::vector<double>& hubble, std::vector<double>& x, cons
 	gsl_odeiv_evolve_free(e);
 	gsl_odeiv_control_free(c);
 	gsl_odeiv_step_free(s);
-	std::cout<<"\nFailure with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<" c0="<<c0<<" at z="<<zcurrtarg<<" h="<<y[0]<<" x="<<y[1]<<" y="<<y[2]<<std::endl;
+	printf("\nFailure with om = %f, c2 = %f, c3 = %f, c4 = %f, c5 = %f, cG = %f and c0 = %f at z = %f, h = %f, x = %f and y = %f\n", om, c2, c3, c4, c5, cG, c0, zcurrtarg, y[0], y[1], y[2]);
+	//std::cout<<"\nFailure with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<" c0="<<c0<<" at z="<<zcurrtarg<<" h="<<y[0]<<" x="<<y[1]<<" y="<<y[2]<<std::endl;
 	// Careful, can't throw exceptions when linking to fortran with ifort
 	//throw CosFitterExcept("lumdist","calcValOmC2C3C4C5CGC0", "NaN value!",1);
 	return 8;
@@ -264,9 +306,17 @@ int calcHubbleGalileon(std::vector<double>& hubble, std::vector<double>& x, cons
     double zcurrtarg;
     int st;
     for(int i = 0; i < nstep; ++i){
-      zcurrtarg = zcoord[i];
-      while(z < zcurrtarg){
+      zcurrtarg = intvar[i];
+     while(z < zcurrtarg){
 	st = gsl_odeiv_evolve_apply(e, c, s, &sys, &z, zcurrtarg, &h, y);
+	double OmegaP = (0.5*c2*pow(y[0], 2)*pow(-(1+intvar[i])*y[1], 2) - 6*c3*pow(y[0], 4)*pow(-(1+intvar[i])*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(-(1+intvar[i])*y[1], 4) - 21*c5*pow(y[0], 8)*pow(-(1+intvar[i])*y[1], 5) - 9*cG*pow(y[0], 4)*pow(-(1+intvar[i])*y[1], 2))/(3.0*pow(y[0], 2)) ;
+	double OmegaM = 1 - OmegaP - orad*pow(1+intvar[i], 4)/pow(y[0], 2);
+	double OmTest = om*pow(1+intvar[i], 3)/pow(y[0], 2);
+	if(OmegaP<0) st = 5;
+	if ( fabs(OmegaM - OmTest)>1e-4  ) {
+	  printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+	  st = 4;
+	}
 	if(st != 0){
 	  gsl_odeiv_evolve_free(e);
 	  gsl_odeiv_control_free(c);
@@ -278,7 +328,8 @@ int calcHubbleGalileon(std::vector<double>& hubble, std::vector<double>& x, cons
 	gsl_odeiv_evolve_free(e);
 	gsl_odeiv_control_free(c);
 	gsl_odeiv_step_free(s);
-	std::cout<<"\nFailure with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<" c0="<<c0<<" at z="<<zcurrtarg<<" h="<<y[0]<<" x="<<y[1]<<" y="<<y[2]<<std::endl;
+	printf("\nFailure with om = %f, c2 = %f, c3 = %f, c4 = %f, c5 = %f, cG = %f and c0 = %f at z = %f, h = %f, x = %f and y = %f\n", om, c2, c3, c4, c5, cG, c0, zcurrtarg, y[0], y[1], y[2]);
+	//std::cout<<"\nFailure with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<" c0="<<c0<<" at z="<<zcurrtarg<<" h="<<y[0]<<" x="<<y[1]<<" y="<<y[2]<<std::endl;
 	// Careful, can't throw exceptions when linking to fortran with ifort
 	//throw CosFitterExcept("lumdist","calcValOmC2C3C4C5CGC0", "NaN value!",1);
 	return 8;
@@ -313,22 +364,27 @@ int calcHubbleGalileon(std::vector<double>& hubble, std::vector<double>& x, cons
   \param[out] table of h 
   \param[out] table of x
 */
-void calcHubbleTracker(std::vector<double>& hubble, std::vector<double>& x, const std::vector<double>& zcoord, double om, double orad, double c2, double c3, double c4, double c5, double cG, double c0, double coord){
+void calcHubbleTracker(){
  
-  bool useacoord = (int)coord;
+  if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return ;
+  }
+
+  bool useacoord = (coord == BARREIRA || coord == JNEVEUa);
   double op = (c2/2.0 - 6.0*c3 + 22.5*c4 - 21.0*c5 - 9*cG )/3.0; //Omega_phi
 
   if(useacoord){
     int nstep = min(hubble.size(),x.size());
     for(int i = 0; i < nstep; ++i){
-      hubble[i] = sqrt(0.5*(om/pow(zcoord[i],3)+orad/pow(zcoord[i],4)-3*cG)+sqrt(op/9+3*cG+0.25*pow(3*cG-om/pow(zcoord[i],3)-orad/pow(zcoord[i],4),2))); // Analytical solution for H
-      x[i] = zcoord[i]/pow(hubble[i],2);
+      hubble[i] = sqrt(0.5*(om/pow(intvar[i],3)+orad/pow(intvar[i],4)-3*cG)+sqrt(op/9+3*cG+0.25*pow(3*cG-om/pow(intvar[i],3)-orad/pow(intvar[i],4),2))); // Analytical solution for H
+      x[i] = intvar[i]/pow(hubble[i],2);
     }
   } else{
     int nstep = min(hubble.size(),x.size());
     for(int i = 0; i < nstep; ++i){
-      hubble[i] = sqrt(0.5*(om*pow(1+zcoord[i],3)+orad*pow(1+zcoord[i],4)-3*cG)+sqrt(op+3*cG+0.25*pow(3*cG-om*pow(1+zcoord[i],3)-orad*pow(1+zcoord[i],4),2)));
-      x[i] = -1/((1+zcoord[i])*pow(hubble[i],2));
+      hubble[i] = sqrt(0.5*(om*pow(1+intvar[i],3)+orad*pow(1+intvar[i],4)-3*cG)+sqrt(op+3*cG+0.25*pow(3*cG-om*pow(1+intvar[i],3)-orad*pow(1+intvar[i],4),2)));
+      x[i] = -1/((1+intvar[i])*pow(hubble[i],2));
     }    
   }
 
@@ -363,16 +419,20 @@ void calcHubbleTracker(std::vector<double>& hubble, std::vector<double>& x, cons
 		       \status = 7 : scalar imaginary speed of sound
 		       \status = 8 : failed to integrate
 */
-int ageOfUniverse(std::vector<double> &hubble, std::vector<double> &x, double &age, std::vector<double> &acoord, double cond[4], double om, double orad, double c2, double c3, double c4, double c5, double cG, double c0){
+int ageOfUniverse(double &age, double cond[4]){
+
+  if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return 9;
+  }
 
   const double Gyr = 3.1556926e16; //Conversion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Conversion factor from Mpc to km
   const double h0 = 71; // Present-day Hubble constant (WMAP7)
 
-  double params[10];
-  params[0] = om; params[1] = c2; params[2] = c3;
-  params[3] = c4; params[4] = c5; params[5] = cG;
-  params[6] = c0; params[7] = orad; params[8]= 1; params[9] = 0.0;	
+  double params[1];
+  bool useacoord = (coord == BARREIRA || coord == JNEVEUa);
+  params[0] = (int)useacoord;
 
   // Vector y = ( dh/dz, dx/dz, dy/dz )
   double y[3] = {cond[0], cond[1], cond[2]};  //Inital value of integral
@@ -381,7 +441,7 @@ int ageOfUniverse(std::vector<double> &hubble, std::vector<double> &x, double &a
 
   const gsl_odeiv_step_type * T = gsl_odeiv_step_rkf45;
   gsl_odeiv_step * s = gsl_odeiv_step_alloc (T, 3);
-  gsl_odeiv_control * c = gsl_odeiv_control_standard_new(1e-14, 1e-14, 1, 1);
+  gsl_odeiv_control * c = gsl_odeiv_control_standard_new(1e-16, 1e-16, 1, 1);
   gsl_odeiv_evolve * e = gsl_odeiv_evolve_alloc (3);
 
   gsl_odeiv_system sys;
@@ -389,18 +449,26 @@ int ageOfUniverse(std::vector<double> &hubble, std::vector<double> &x, double &a
   sys.dimension = 3;
   sys.params = &params;
 
-  double a = acoord[1];
-  int nstep = acoord.size();
+  double a = intvar[1];
+  int nstep = intvar.size();
   double h = 1e-6; //Initial step guess
   double acurrtarg;
-  double prec_age = 1/(acoord[1]*cond[0]); // initial value of 1/(a*Hbar)
+  double prec_age = 1/(intvar[1]*cond[0]); // initial value of 1/(a*Hbar)
   int st;
   age = cond[3];
 
   for (int i = 2; i < nstep; i++) {
-    acurrtarg = acoord[i];
+    acurrtarg = intvar[i];
     while(a < acurrtarg){
       st = gsl_odeiv_evolve_apply(e, c, s, &sys, &a, acurrtarg, &h, y);
+      double OmegaP = (0.5*c2*pow(y[0], 2)*pow(intvar[i]*y[1], 2) - 6*c3*pow(y[0], 4)*pow(intvar[i]*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(intvar[i]*y[1], 4) - 21*c5*pow(y[0], 8)*pow(intvar[i]*y[1], 5) - 9*cG*pow(y[0], 4)*pow(intvar[i]*y[1], 2))/(3.0*pow(y[0], 2)) ;
+      double OmegaM = 1 - OmegaP - orad/(pow(a,4)*pow(y[0], 2));
+      double OmTest = om/(pow(a,3)*pow(y[0], 2));
+      if(OmegaP<0) st = 5;
+      if ( fabs(OmegaM - OmTest)>1e-4  ) {
+	printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+	st = 4;
+      }
       if(st != 0){
 	gsl_odeiv_evolve_free (e);
 	gsl_odeiv_control_free (c);
@@ -412,11 +480,10 @@ int ageOfUniverse(std::vector<double> &hubble, std::vector<double> &x, double &a
       gsl_odeiv_evolve_free (e);
       gsl_odeiv_control_free (c);
       gsl_odeiv_step_free (s);
-      //std::cout<<"\nFailure with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<" c0="<<c0<<" at z="<<zcurrtarg<<" h="<<y[0]<<" x="<<y[1]<<" y="<<y[2]<<std::endl;
       return 8;
     }
-    age += 0.5*(1.0/(acoord[i]*y[0])+prec_age)*(acoord[i]-acoord[i-1]); // trapezoidal method
-    prec_age = 1/(acoord[i]*y[0]);
+    age += 0.5*(1.0/(intvar[i]*y[0])+prec_age)*(intvar[i]-intvar[i-1]); // trapezoidal method
+    prec_age = 1/(intvar[i]*y[0]);
     hubble[i-1] = y[0];
     x[i-1] = y[1];
   }
@@ -465,18 +532,23 @@ struct less_than_key{
   }
 };
 
-int initCond(std::vector<double> &hubble, std::vector<double> &x, double &xi, std::vector<double> &acoord, double H[2], double ratio_rho, double age, double om, double orad, double c2, double c3, double c4, double c5, double cG, double c0){
+int initCond(double &xi, double H[2], double ratio_rho, double age){
+
+  if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return 9;
+  }
 
   const double Gyr = 3.1556926e16; //Convertion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Convertion factor from Mpc to km
   int status = 0;
   double coeff[6]; //array of coefficients of the polynomial
-  coeff[0] = -3*ratio_rho*om/pow(acoord[1], 3); coeff[1] = 0; coeff[2] = c2/2*pow(H[1], 2)-9*cG*pow(H[1], 4);
+  coeff[0] = -3*ratio_rho*om/pow(intvar[1], 3); coeff[1] = 0; coeff[2] = c2/2*pow(H[1], 2)-9*cG*pow(H[1], 4);
   coeff[3] = -6*c3*pow(H[1], 4); coeff[4] = 45/2*c4*pow(H[1], 6); coeff[5] = -21*c5*pow(H[1], 8);
 
   size_t n = sizeof(coeff)/sizeof(double);
   double cond[4]; // initial conditions
-  cond[0] = H[1]; cond[2] = 0; cond[3] = Mpc/Gyr*(1/H[1]-pow(acoord[1], 2)/2*(1/(acoord[0]*H[0])-1/(acoord[1]*H[1]))/(acoord[0]-acoord[1])); // Initial value of the age of the Universe, extrapolating linearly the integral
+  cond[0] = H[1]; cond[2] = 0; cond[3] = Mpc/Gyr*(1/H[1]-pow(intvar[1], 2)/2*(1/(intvar[0]*H[0])-1/(intvar[1]*H[1]))/(intvar[0]-intvar[1])); // Initial value of the age of the Universe, extrapolating linearly the integral
   //std::cout << "Initial value : " << cond[3] << endl;
 
   AgeofU ini_vec_age = AgeofU(0, 1000);
@@ -490,11 +562,12 @@ int initCond(std::vector<double> &hubble, std::vector<double> &x, double &xi, st
   int nrealsol = 0; // Number of real solutions
 
   for(int j = 0; j<n-1; j++){
-    std::cout << "Root number " << j << " is " << z[2*j] << " + " << z[2*j+1] << "i" << endl;
+    printf("Root number %i is %e + %e*i\n", j, z[2*j], z[2*j+1]);
+    //std::cout << "Root number " << j << " is " << z[2*j] << " + " << z[2*j+1] << "i" << endl;
     if(z[2*j+1]==0){
-      cond[1] = z[2*j]/acoord[1]; // Initial condition for d_phi/da
+      cond[1] = z[2*j]/intvar[1]; // Initial condition for d_phi/da
       aou[j].i = j;
-      int status2 = ageOfUniverse(hubble, x, aou[j].a, acoord, cond, om, orad, c2, c3, c4, c5, cG, c0);
+      int status2 = ageOfUniverse(aou[j].a, cond);
       aou[j].a -= age;
       if(status2 != 0) return status2;
     }
@@ -503,7 +576,8 @@ int initCond(std::vector<double> &hubble, std::vector<double> &x, double &xi, st
   for(int j = 0; j<n-1; j++){
     if(aou[j].a != 1000){
       nrealsol++;
-      std::cout << "Root number " << aou[j].i << " gives age of universe equal to " << aou[j].a + age << endl; 
+      printf("Root number %i gives age of universe equal to %f\n", aou[j].i, aou[j].a + age);
+      //std::cout << "Root number " << aou[j].i << " gives age of universe equal to " << aou[j].a + age << endl; 
     }
   }
 
@@ -515,32 +589,38 @@ int initCond(std::vector<double> &hubble, std::vector<double> &x, double &xi, st
 
   xi = z[2*(aou[0].i)];
   if(nrealsol > 1){
-    cond[1] = xi/acoord[1];
-    ageOfUniverse(hubble, x, aou[0].a, acoord, cond, om, orad, c2, c3, c4, c5, cG, c0);
+    cond[1] = xi/intvar[1];
+    ageOfUniverse(aou[0].a, cond);
   }
-
-  std::cout << "Initial condition for x is " << xi << ", it is the root number " << aou[0].i << " and it gives an age of the universe equal to " << aou[0].a << endl;
+  printf("Initial condition for x is %e, it is the root number %i and it gives an age of the universe equal to %f\n", xi, aou[0].i, aou[0].a);
+  //std::cout << "Initial condition for x is " << xi << ", it is the root number " << aou[0].i << " and it gives an age of the universe equal to " << aou[0].a << endl;
 
   return status;
 
 } 
 
+void SetAcoord(double amin){
 
-void SetAcoord(std::vector<double>& acoord, double amin ){
+  intvar.clear();
 
-  double da = 1e-5; //!< Step in a
+  double da = 1e-4; //!< Step in a
   double dafactor = 0.01; //!< Factor to apply to da if a<astep
   double dafactor2 = 0.001; //!< Factor to apply to da if a<astep2
   double dafactor3 = 0.0001; //!< Factor to apply to da if a<astep3
   double dafactor4 = 0.00001; //!< Factor to apply to da if a<astep4
   double dafactor5 = 0.000001; //!< Factor to apply to da if a<astep5
-  double astep = 0.02; //!< Step in a where to change da
-  double astep2 = 0.0005; //!< Step in a where to change da
-  double astep3 = 3e-5; //!< Step in a where to change da
-  double astep4 = 5e-6; //!< Step in a where to change da
-  double astep5 = 5e-7; //!< Step in a where to change da  
+  double astep;
+  double astep2;
+  double astep3;
+  double astep4;
+  double astep5;
 
-  if (acoord.size() != 0) acoord.clear();
+  astep = 0.02; //!< Step in a where to change da
+  astep2 = 0.0005; //!< Step in a where to change da
+  astep3 = 3e-5; //!< Step in a where to change da
+  astep4 = 5e-6; //!< Step in a where to change da
+  astep5 = 5e-7; //!< Step in a where to change da  
+
   int nstep = (int)floor((1.0-astep)/da);
   int nstep1 = nstep + (int)floor((astep-astep2)/(dafactor*da));
   int nstep2 = nstep1 + (int)floor((astep2-astep3)/(dafactor2*da));
@@ -548,293 +628,655 @@ void SetAcoord(std::vector<double>& acoord, double amin ){
   int nstep4 = nstep3 + (int)floor((astep4-astep5)/(dafactor4*da));
   int nsteptot = nstep4 + (int)floor(astep5/(dafactor5*da));
 
-  //std::cout << nstep << " " << nstep1 << " " << nstep2 << " " << nstep3 << " " << nstep4 << " " << nsteptot << endl;
+  printf("nstep : %i, nstep1 : %i, nstep2 : %i, nstep3 : %i, nstep4 : %i, nsteptot : %i\n", nstep, nstep1, nstep2, nstep3, nstep4, nsteptot);
 
-  acoord.push_back(1.0); // Initialization of acoord
+  intvar.push_back(1.0); // Initialization of acoord
 
   for(int i = 1; i< nsteptot; ++i){
-    if(acoord[i-1]>amin){
+     if(intvar[i-1]>amin){
       if(i<nstep){
-	acoord.push_back(1.0-i*da);
+	intvar.push_back(1.0-i*da);
       } else if(nstep<=i && i<nstep1){
-	acoord.push_back(astep-(i-nstep)*da*dafactor);
+	intvar.push_back(astep-(i-nstep)*da*dafactor);
       } else if(nstep1<=i && i<nstep2){
-	acoord.push_back(astep2-(i-nstep1)*da*dafactor2);
+	intvar.push_back(astep2-(i-nstep1)*da*dafactor2);
       } else if(nstep2<=i && i<nstep3){
-	acoord.push_back(astep3-(i-nstep2)*da*dafactor3);
+	intvar.push_back(astep3-(i-nstep2)*da*dafactor3);
       } else if(nstep3<=i && i<nstep4){
-	acoord.push_back(astep4-(i-nstep3)*da*dafactor4);
+	intvar.push_back(astep4-(i-nstep3)*da*dafactor4);
       } else if(nstep4<=i && i<nsteptot){
-	acoord.push_back(astep5-(i-nstep4)*da*dafactor5);
+	intvar.push_back(astep5-(i-nstep4)*da*dafactor5);
       }
-    } else{
+     } else{
       break;
     }
   }
 
-  acoord.pop_back();
-  //for (unsigned int k=0; k<acoord.size(); ++k)
-  // std::cout<<acoord[k]<<std::endl;
+  intvar.pop_back();
+  intvar.push_back(amin);
+  //for (unsigned int k=0; k<intvar.size(); ++k)
+  // std::cout<<intvar[k]<<std::endl;
+}
+
+
+// Function that calculates dtau/da = 1/(a^2*H) (tau being confromal time)
+// The function is the one linked to CAMB in order to calculate the background contribution
+// extern "C" void arrays_(char* infile, char* outfile, double* omegar){
+extern "C" void arrays_(char* infile, double* omegar){
+
+  fflush(stdout);
+
+  // Clear three global vectors
+  intvar.clear();
+  hubble.clear();
+  x.clear();
+
+  char** params = readParamsFile(infile);
+  // char* default_name = "output.txt";
+
+  c2 = (*params != "") ? atof(*params) : 0;
+  c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
+  c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
+  c5 = (*(params+3) != "") ? atof(*(params+3)) : 0;
+  c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
+  cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
+  double ratio_rho = (*(params+6) != "") ? atof(*(params+6)) : 0;
+  double age = (*(params+7) != "") ? atof(*(params+7)) : 0;
+  // om = (*(params+8) != "") ? atof(*(params+8)) : 0;
+  // printf("(%f + %f)/%f^2\n", atof(*(params+8)), atof(*(params+9)), atof(*(params+12))/100);
+  om = (*(params+8) != "" && *(params+9) != "" && *(params+12) != "") ? (atof(*(params+8))+atof(*(params+9)))/pow(atof(*(params+12)), 2)*10000 : 0;
+  // orad = (*(params+9) != "") ? atof(*(params+9)) : 0;
+  orad = (*omegar);
+  //char* name = (*(params+10) != "") ? *(params+10) : default_name;
+  // if(name != "") name[strlen(name)-1] = '\0';
+  // if(strlen(name) != 0) name[strlen(name)-1] = '\0';
+  char* solvingMethod = *(params+10);
+  if(solvingMethod != "") solvingMethod[strlen(solvingMethod)-1] = '\0';
+  if(strcmp(solvingMethod, "JNEVEUz") != 0 && strcmp(solvingMethod, "JNEVEUa") != 0 && strcmp(solvingMethod, "BARREIRA") != 0){
+    fprintf(stderr, "WARNING : invalid integration method, will use the default one\n");
+  } else if(strcmp(solvingMethod, "JNEVEUz") == 0){
+    coord = JNEVEUz;
+  } else if(strcmp(solvingMethod, "JNEVEUa") == 0){
+    coord = JNEVEUa;
+  } else if(strcmp(solvingMethod, "BARREIRA") == 0){
+    coord = BARREIRA;
+  }
+  double dotphi = (*(params+11) != "") ? atof(*(params+11)) : 0;
+  char* outfile = *(params+13);
+  if(outfile != ""){
+    outfile[strlen(outfile)-1] = '\0';
+    outfile = strcat(outfile, "_");
+  }
+  outfile = strcat(outfile, "background.dat");
+  
+
+  printf("Input file : %s\nOutput file : %s\n", infile, outfile);
+  printf("OmegaM0 = %f\n OmegaR0 = %.18f\n c0 = %f\n c2 = %f\n c3 = %f\n c4 = %f\n c5 = %f\n cG = %f\n", om, orad, c0, c2, c3, c4, c5, cG);
+
+  // The status of the integration, 0 = it went well
+  int status = 0;
+
+  if(coord == BARREIRA){
+    printf("mode : barreira\n");
+
+    // Where to put initial condition
+    double apremin = 1e-7;
+    double amin = 9.99999e-7;
+    intvar.push_back(apremin);
+
+    // Fill the vector of a with a geometric sequence
+    double q = 1.+5./10000;
+    for(int i = 0; i<log(1/amin)/log(q); i++){
+      intvar.push_back(amin*pow(q, i));
+    }
+    intvar.push_back(1.);
+
+    printf("Number of points : %i\n", intvar.size());
+
+    // Calculate initial conditions in H and ratio_rho
+    double xi = 0;
+    double H[2];
+    if(dotphi == 0){
+      H[0] = sqrt(om/pow(apremin, 3)*(1+ratio_rho)+orad/pow(apremin, 4));
+      H[1] = sqrt(om/pow(amin, 3)*(1+ratio_rho)+orad/pow(amin, 4));
+    } else{
+      H[0] = sqrt(om/pow(apremin, 3)+orad/pow(apremin, 4));
+      H[1] = sqrt(om/pow(amin, 3)+orad/pow(amin, 4));
+      ratio_rho = pow(intvar[1], 3)/(3*om)*(0.5*c2*pow(dotphi*H[1], 2)-6*c3*H[1]*pow(dotphi*H[1], 3)+22.5*c4*pow(H[1], 2)*pow(dotphi*H[1], 4)-21*c5*pow(H[1], 3)*pow(dotphi*H[1], 5)-9*cG*pow(H[1], 2)*pow(dotphi*H[1], 2));
+    }
+
+    hubble.resize(intvar.size()-1, 999999);
+    x.resize(intvar.size()-1, 999999);
+
+    // Calculate initial conditions in x and fill hubble and x from then to now
+    status = initCond(xi, H, ratio_rho, age);
+
+    printf("\nstatus = %i\n", status);
+
+  } else if(coord == JNEVEUa){
+    printf("mode : acoord\n");
+
+    // Fill the array of a with points where to integrate
+    double amin = 0.000908;
+    SetAcoord(amin);
+    sort(intvar.begin(), intvar.end(), std::greater<double>());
+
+    hubble.resize(intvar.size(), 999999);
+    x.resize(intvar.size(), 999999);
+
+    // Integrate and fill hubble and x both when tracker and not tracker
+    if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
+    {
+      status = calcHubbleGalileon();
+    }
+    else {
+      calcHubbleTracker();
+    }
+
+    printf("\nstatus = %i\n", status);
+
+  } else if(coord == JNEVEUz){
+    printf("mode : zcoord\n");
+
+    // Fill the array of z with points where to integrate
+    double zmax = 1100;
+    double amin = 1/(1+zmax);
+    SetAcoord(amin);
+    sort(intvar.begin(), intvar.end(), std::greater<double>());
+    for(int i=0;i<intvar.size();i++) {intvar[i]=1/(1+intvar[i]);}
+
+    hubble.resize(intvar.size(), 999999);
+    x.resize(intvar.size(), 999999);
+
+    double op = 1.5*c2 - 18*c3 + 67.5*c4 - 63*c5 - 27*cG;
+
+    // Integrate and fill hubble and x both when tracker and not tracker
+    if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
+    {
+      status = calcHubbleGalileon();
+    }
+    else {
+      printf("Tracker\n");
+      calcHubbleTracker();
+    }
+
+    printf("\nstatus = %i\n", status);
+  }
+
+
+  if(status != 0){
+    hubble.clear();
+    x.clear();
+  }
+
+  FILE* f = fopen(outfile, "w");
+  for(int i = 0; i<intvar.size()-1; i++){
+    double hubble_LCDM = sqrt(om/pow(intvar[i+1], 3)+orad/pow(intvar[i+1], 4)+(1-om-orad));
+    double ratio = hubble[i]/hubble_LCDM;
+    fprintf(f, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", intvar[i+1], hubble[i], x[i], hubble_LCDM, ratio);
+  }
+
 }
 
 
 
+extern "C" double* handxofa_(double* point){
 
+  if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
+    printf("One of the global arrays is empty\n");
+    exit(EXIT_FAILURE);
+  }
 
-int main(){
+  static double hx[2];
 
-  std::vector<std::string> params = readParamsFile("galileon.ini");
+  // Fill the vector of a with a geometric sequence
+  double q = 1.+5./10000;
 
-  double c2 = atof(params[0].c_str());
-  double c3 = atof(params[1].c_str());
-  double c4 = atof(params[2].c_str());
-  double c5 = atof(params[3].c_str());
-  double c0 = atof(params[4].c_str());
-  double cG = atof(params[5].c_str());
-  double ratio_rho = atof(params[6].c_str());
-  double age = atof(params[7].c_str());
-  double om = atof(params[8].c_str());
-  double orad = atof(params[9].c_str());
-  char* name = const_cast<char*>(params[10].c_str());
-  double barreira = atof(params[11].c_str());
+  double alpha = (log(*point) - log(intvar[1]))/log(q); // Solving amin*q^alpha = a
+  int i = floor(alpha)+1; // i is integer part of alpha, so that a[i] <= a < a[i+1]
 
-  //double barreira = 0;
-  double coord = 0;
-  int status = 0;
+  //printf("%i, %i, %f, %f, %i, %f, %f, %.12f\n", i, hubble.size(), hubble[i], hubble[i-1], intvar.size(), intvar[i+1], intvar[i], (*point));
 
-  // File to store h and x as a function of z
-  ofstream f;
-  //f.open("5params_all_2015_combined_noH0prior.dat", ios::out );
+  // Linear interpolation
+  hx[0] = (hubble[i] - hubble[i-1])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i-1];
+  hx[1] = (x[i] - x[i-1])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + x[i-1];
+
+  if(i<=3){
+    double hubble_LCDM = sqrt(om/pow((*point), 3)+orad/pow((*point), 4)+(1-om-orad));
+    if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time");
+  }
+
+  // Resolution of coupled differential equations from a[i] to *a
+  // double params[1];
+  // bool useacoord = (coord == BARREIRA || coord == JNEVEUa);
+  // params[0] = (int)useacoord;
+  // // Vector y = ( dh/dz, dx/dz, dy/dz )
+  // double y[3] = {hubble[i-1], x[i-1], 0};  //Inital value of integral
+
+  // const gsl_odeiv_step_type * T = gsl_odeiv_step_rkf45;
+  // gsl_odeiv_step * s = gsl_odeiv_step_alloc(T, 3);
+  // gsl_odeiv_control * c = gsl_odeiv_control_standard_new(1e-16, 1e-16, 1, 1);
+  // gsl_odeiv_evolve * e = gsl_odeiv_evolve_alloc(3);
+  // gsl_odeiv_system sys;
+  // sys.function = calcValOmC2C3C4C5CGC0;
+  // sys.dimension = 3;
+  // sys.params = &params;
+
+  // double var = intvar[i]; // a or z
+  // double var2;
+  // double h = 1e-6; //Initial step guess
+  // double currtarg = (*point);
+  // double currtarg2;
+  // int st;
+  // double OmegaP;
+  // double OmegaM;
+  // double OmTest;
+
+  // if(coord == BARREIRA || coord == JNEVEUz){
+  //   var2 = var;
+  //   currtarg2 = currtarg;
+  // } else if(coord == JNEVEUa){
+  //   var2 = -var;
+  //   currtarg2 = -currtarg;
+  // }
+
+  // while(var2 < currtarg2){
+  //   st = gsl_odeiv_evolve_apply(e, c, s, &sys, &var, currtarg, &h, y);
+  //   if(coord == BARREIRA || coord == JNEVEUz){
+  //     var2 = var;
+  //   } else if(coord == JNEVEUa){
+  //     var2 = -var;
+  //   }
+  // }
+  // if(coord == BARREIRA || coord == JNEVEUa){
+  //   OmegaP = (0.5*c2*pow(y[0], 2)*pow(currtarg*y[1], 2) - 6*c3*pow(y[0], 4)*pow(currtarg*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(currtarg*y[1], 4) - 21*c5*pow(y[0], 8)*pow(currtarg*y[1], 5) - 9*cG*pow(y[0], 4)*pow(currtarg*y[1], 2))/(3.0*pow(y[0], 2)) ;
+  //   OmegaM = 1 - OmegaP - orad/(pow(var,4)*pow(y[0], 2));
+  //   OmTest = om/(pow(var,3)*pow(y[0], 2));
+  // } else if(coord == JNEVEUz){
+  //   OmegaP = (0.5*c2*pow(y[0], 2)*pow(-(1+currtarg)*y[1], 2) - 6*c3*pow(y[0], 4)*pow(-(1+currtarg)*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(-(1+currtarg)*y[1], 4) - 21*c5*pow(y[0], 8)*pow(-(1+currtarg)*y[1], 5) - 9*cG*pow(y[0], 4)*pow(-(1+currtarg)*y[1], 2))/(3.0*pow(y[0], 2)) ;
+  //   OmegaM = 1 - OmegaP - orad*pow(1+currtarg, 4)/pow(y[0], 2);
+  //   OmTest = om*pow(1+var, 3)/pow(y[0], 2);
+  // }
+
+  // if(OmegaP<0) st = 5;
+  // if ( fabs(OmegaM - OmTest)>1e-4  ) {
+  //   printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+  //   st = 4;
+  // }
   
-  /*
-  // Set of parameters (Best fit 2015 BAO+Planck+Lya from Jeremy)
-  double h = 0.762;
-  double OmegaM0 = 0.261175;
-  double OmegaR0 = 2.469*pow(10,-5)*(1+0.2271*3.04)/(pow(h,2));
-  double om = OmegaM0;
-  double orad = OmegaR0;
-  double c2 = -5.25803;
-  double c3 = -1.13137;
-  double cG = 0;
-  double c4 = 1.0/27*(30*(om+orad-1)-9*c2+24*c3-6*cG);
-  double c5 = 1.0/3*(4*(om+orad-1)-c2+2*c3-2*cG);
-  double c0 = 0;
-  char* name = "tracker_test.dat";
-  */
-  
-
-  /*
-  // Best fit Unc 2015 All+JLA+noH0prior from Jeremy
-  double h = 0.736;
-  double OmegaM0 = 0.275;
-  double OmegaR0 = 2.469*pow(10,-5)*(1+0.2271*3.04)/(pow(h,2));
-  double om = OmegaM0;
-  double orad = OmegaR0;
-  double c2 = -4.145;
-  double c3 = -1.545;
-  double cG = 0;
-  double c4 = -0.776;
-  double c5 = (om+orad-1+c2/6-2*c3+7.5*c4-3*cG)/7;
-  double c0 = 0;
-  char* name = "5params_all_2015_combined_noH0prior_bis_bis.dat";
-  */
-  
-
-  /*
-  // Best fit + cG +1 sigma 2015 All+JLA+noH0prior from Jeremy
-  double h = 0.727;
-  double OmegaM0 = 0.280;
-  double OmegaR0 = 2.469*pow(10,-5)*(1+0.2271*3.04)/(pow(h,2));
-  double om = OmegaM0;
-  double orad = OmegaR0;
-  double c2 = -3.434;
-  double c3 = -1.062;
-  double cG = 0.235;
-  double c4 = -0.610;
-  double c5 = (om+orad-1+c2/6-2*c3+7.5*c4-3*cG)/7;
-  double c0 = 0;
-  char* name = "6params_all_2015_combined_noH0prior.dat";
-  */
-
-  
-  // Galileon parameters from Barreira
-  // double c3 = 12.8;
-  // double c4 = -1.7;
-  // double c5 = 1.0;
-  // double cG = 0;
-  // double ratio_rho = 1e-4;
-  // double c2 = -27.0;
-  // double age = 13.978;
-  // double c0 = 0;
-  // double orad = 8e-5;
-  // double om = 0.265;
-  // char* name = "barreira_galileon_1_1e-4.dat";
-  // barreira = 1;
-  
-
-
-  if(barreira)
-  {
-    cout << "barreira" << endl;
+  // if(st != 0){
+  //   gsl_odeiv_evolve_free (e);
+  //   gsl_odeiv_control_free (c);
+  //   gsl_odeiv_step_free (s);
+  //   printf("status = %d", st);
+  //   exit(EXIT_FAILURE);
+  // }
     
-    f.open(name, ios::out );
+  // if(isnan(fabs(y[0])) || isnan(fabs(y[1])) || isnan(fabs(y[2]))){
+  //   gsl_odeiv_evolve_free (e);
+  //   gsl_odeiv_control_free (c);
+  //   gsl_odeiv_step_free (s);
+  //   //std::cout<<"\nFailure with om="<<om<<" c2="<<c2<<" c3="<<c3<<" c4="<<c4<<" c5="<<c5<<" cG="<<cG<<" c0="<<c0<<" at z="<<zcurrtarg<<" h="<<y[0]<<" x="<<y[1]<<" y="<<y[2]<<std::endl;
+  //   printf("status = %d", 8);
+  //   exit(EXIT_FAILURE);
+  // }
+    
+  // hx[0] = y[0];
+  // hx[1] = y[1];
+  
+  // gsl_odeiv_evolve_free (e);
+  // gsl_odeiv_control_free (c);
+  // gsl_odeiv_step_free (s);
+  
+  return hx;
 
-    double apremin = 1e-7;
-    double amin = 9.99999e-7;
-    std::vector<double> acoord;
-    acoord.push_back(apremin);
-    SetAcoord(acoord, amin);
-
-    sort(acoord.begin(), acoord.end());
-
-    double xi = 0;
-    double H[] = {sqrt(om/pow(apremin, 3)+orad/pow(apremin, 4)), sqrt(om/pow(amin, 3)+orad/pow(amin, 4))};
-
-    std::vector<double> hubble(acoord.size()-1, 999999);
-    std::vector<double> x(acoord.size()-1, 999999);
-
-    int status = initCond(hubble, x, xi, acoord, H, ratio_rho, age, om, orad, c2, c3, c4, c5, cG, c0);
-
-    std::cout << "OmegaM0 = " << om << std::endl;
-    std::cout << "OmegaR0 = " << orad << std::endl;
-    std::cout << "c0 = " << c0 << std::endl;
-    std::cout << "c2 = " << c2 << std::endl;
-    std::cout << "c3 = " << c3 << std::endl;
-    std::cout << "c4 = " << c4 << std::endl;
-    std::cout << "c5 = " << c5 << std::endl;
-    std::cout << "cG = " << cG << std::endl;
-    std::cout << "\n\nstatus = " << status << "\n" << std::endl;
-
-    if(status!=0) return 0;
+}
 
 
-    for(int i=0; i<hubble.size(); i++)
-      {
-        double alpha = c2/6*hubble[i]*acoord[i+1]*x[i]-3*c3*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2) + 15*c4*pow(hubble[i], 5)*pow(acoord[i+1]*x[i], 3) - 17.5*c5*pow(hubble[i], 7)*pow(acoord[i+1]*x[i], 4) - 3*cG*pow(hubble[i], 3)*acoord[i+1]*x[i];
-	double gamma = c2/3*pow(hubble[i], 2)*acoord[i+1]*x[i]-c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2) + 2.5*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 4) - 2*cG*pow(hubble[i], 4)*acoord[i+1]*x[i];
-	double beta = c2/6*pow(hubble[i], 2) -2*c3*pow(hubble[i], 4)*acoord[i+1]*x[i] + 9*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 2) - 10*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 3) - cG*pow(hubble[i], 4);
-	double sigma = 2*hubble[i] + 2*c3*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 3) - 15*c4*pow(hubble[i], 5)*pow(acoord[i+1]*x[i], 4) + 21*c5*pow(hubble[i], 7)*pow(acoord[i+1]*x[i], 5) + 6*cG*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2);
-	double lambda = 3*pow(hubble[i], 2) + orad/pow(acoord[i+1], 4) + c2/2*pow(hubble[i], 2)*pow(acoord[i+1]*x[i], 2) - 2*c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 3) + 7.5*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 4) - 9*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 5) - cG*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2);
-	double omega = 2*c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2) - 12*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 3) + 15*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 4) + 4*cG*pow(hubble[i], 4)*acoord[i+1]*x[i];
+
+// int main(){
+
+//   fflush(stdout);
+
+//   // Clear three global vectors
+//   intvar.clear();
+//   hubble.clear();
+//   x.clear();
+
+//   char** params = readParamsFile("galileon.ini");
+
+//   char* default_name = "output.txt";
+
+//    c2 = (*params != "") ? atof(*params) : 0;
+//    c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
+//    c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
+//    c5 = (*(params+3) != "") ? atof(*(params+3)) : 0;
+//    c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
+//    cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
+//    double ratio_rho = (*(params+6) != "") ? atof(*(params+6)) : 0;
+//    double age = (*(params+7) != "") ? atof(*(params+7)) : 0;
+//    om = (*(params+8) != "") ? atof(*(params+8)) : 0;
+//    orad = (*(params+9) != "") ? atof(*(params+9)) : 0;
+//    char* name = (*(params+10) != "") ? *(params+10) : default_name;
+//    if(name != "") name[strlen(name)-1] = '\0';
+//    // double barreira = (*(params+11) != "") ? atof(*(params+11)) : 0;
+//   char* solvingMethod = *(params+11);
+//   if(solvingMethod != "") solvingMethod[strlen(solvingMethod)-1] = '\0';
+//   if(strcmp(solvingMethod, "JNEVEUz") != 0 && strcmp(solvingMethod, "JNEVEUa") != 0 && strcmp(solvingMethod, "BARREIRA") != 0){
+//     fprintf(stderr, "WARNING : invalid integration method, will use the default one\n");
+//   } else if(strcmp(solvingMethod, "JNEVEUz") == 0){
+//     coord = JNEVEUz;
+//   } else if(strcmp(solvingMethod, "JNEVEUa") == 0){
+//     coord = JNEVEUa;
+//   } else if(strcmp(solvingMethod, "BARREIRA") == 0){
+//     coord = BARREIRA;
+//   }
+//    double dotphi = (*(params+12) != "") ? atof(*(params+12)) : 0;
+
+//    //printf("OmegaM0 = %.2f\nOmegaR0 = %.2e\nc0 = %.2f\nc2 = %.2f\nc3 = %.2f\nc4 = %.2f\nc5 = %.2f\ncG = %.2f\n", om, orad, c0, c2, c3, c4, c5, cG);
+
+//   // double coord = 0;
+//   int status = 0;
+
+//   // File to store h and x as a function of z
+//   FILE* f;
+  
+//   /*
+//   // Set of parameters (Best fit 2015 BAO+Planck+Lya from Jeremy)
+//   double h = 0.762;
+//   double OmegaM0 = 0.261175;
+//   double OmegaR0 = 2.469*pow(10,-5)*(1+0.2271*3.04)/(pow(h,2));
+//   double om = OmegaM0;
+//   double orad = OmegaR0;
+//   double c2 = -5.25803;
+//   double c3 = -1.13137;
+//   double cG = 0;
+//   double c4 = 1.0/27*(30*(om+orad-1)-9*c2+24*c3-6*cG);
+//   double c5 = 1.0/3*(4*(om+orad-1)-c2+2*c3-2*cG);
+//   double c0 = 0;
+//   char* name = "tracker_test.dat";
+//   */
+  
+
+//   /*
+//   // Best fit Unc 2015 All+JLA+noH0prior from Jeremy
+//   double h = 0.736;
+//   double OmegaM0 = 0.275;
+//   double OmegaR0 = 2.469*pow(10,-5)*(1+0.2271*3.04)/(pow(h,2));
+//   double om = OmegaM0;
+//   double orad = OmegaR0;
+//   double c2 = -4.145;
+//   double c3 = -1.545;
+//   double cG = 0;
+//   double c4 = -0.776;
+//   double c5 = (om+orad-1+c2/6-2*c3+7.5*c4-3*cG)/7;
+//   double c0 = 0;
+//   char* name = "5params_all_2015_combined_noH0prior_bis_bis.dat";
+//   */
+  
+
+//   /*
+//   // Best fit + cG +1 sigma 2015 All+JLA+noH0prior from Jeremy
+//   double h = 0.727;
+//   double OmegaM0 = 0.280;
+//   double OmegaR0 = 2.469*pow(10,-5)*(1+0.2271*3.04)/(pow(h,2));
+//   double om = OmegaM0;
+//   double orad = OmegaR0;
+//   double c2 = -3.434;
+//   double c3 = -1.062;
+//   double cG = 0.235;
+//   double c4 = -0.610;
+//   double c5 = (om+orad-1+c2/6-2*c3+7.5*c4-3*cG)/7;
+//   double c0 = 0;
+//   char* name = "6params_all_2015_combined_noH0prior.dat";
+//   */
+
+  
+//   // Galileon parameters from Barreira
+//   // double c3 = 12.8;
+//   // double c4 = -1.7;
+//   // double c5 = 1.0;
+//   // double cG = 0;
+//   // double ratio_rho = 1e-4;
+//   // double c2 = -27.0;
+//   // double age = 13.978;
+//   // double c0 = 0;
+//   // double orad = 8e-5;
+//   // double om = 0.265;
+//   // char* name = "barreira_galileon_1_1e-4.dat";
+//   // barreira = 1;
+  
+
+
+//   // if(barreira)
+//   if(coord == BARREIRA)
+//   {
+//     printf("barreira\n");
+
+//     f = fopen(name, "w");
+
+//     double apremin = 1e-7;
+//     double amin = 9.99999e-7;
+//     // std::vector<double> acoord;
+//     // acoord.push_back(apremin);
+//     intvar.push_back(apremin);
+//     //SetAcoord(acoord, amin, barreira);
+//     //sort(acoord.begin(), acoord.end());
+
+//     double q = 1.+5./10000;
+//     for(int i = 0; i<log(1/amin)/log(q) ;i++){
+//       // acoord.push_back(amin*pow(q, i));
+//       intvar.push_back(amin*pow(q, i));
+//     }
+
+//     // printf("%i\n", acoord.size());
+//     printf("%i\n", intvar.size());
+
+//     double xi = 0;
+//     double H[2];
+//     if(dotphi == 0){
+//       H[0] = sqrt(om/pow(apremin, 3)*(1+ratio_rho)+orad/pow(apremin, 4));
+//       H[1] = sqrt(om/pow(amin, 3)*(1+ratio_rho)+orad/pow(amin, 4));
+//     } else{
+//       H[0] = sqrt(om/pow(apremin, 3)+orad/pow(apremin, 4));
+//       H[1] = sqrt(om/pow(amin, 3)+orad/pow(amin, 4));
+//       // ratio_rho = pow(acoord[1], 3)/(3*om)*(0.5*c2*pow(dotphi*H[1], 2)-6*c3*H[1]*pow(dotphi*H[1], 3)+22.5*c4*pow(H[1], 2)*pow(dotphi*H[1], 4)-21*c5*pow(H[1], 3)*pow(dotphi*H[1], 5)-9*cG*pow(H[1], 2)*pow(dotphi*H[1], 2));
+//       ratio_rho = pow(intvar[1], 3)/(3*om)*(0.5*c2*pow(dotphi*H[1], 2)-6*c3*H[1]*pow(dotphi*H[1], 3)+22.5*c4*pow(H[1], 2)*pow(dotphi*H[1], 4)-21*c5*pow(H[1], 3)*pow(dotphi*H[1], 5)-9*cG*pow(H[1], 2)*pow(dotphi*H[1], 2));
+//       std::cout << ratio_rho << endl;
+//     }
+
+//     // std::vector<double> hubble(acoord.size()-1, 999999);
+//     // std::vector<double> x(acoord.size()-1, 999999);
+//     hubble.resize(intvar.size()-1, 999999);
+//     x.resize(intvar.size()-1, 999999);
+
+//     // int status = initCond(hubble, x, xi, acoord, H, ratio_rho, age, om, orad, c2, c3, c4, c5, cG, c0);
+//     int status = initCond(xi, H, ratio_rho, age);
+
+//     printf("OmegaM0 = %f\nOmegaR0 = %f\nc0 = %f\nc2 = %f\nc3 = %f\nc4 = %f\nc5 = %f\ncG = %f\n\n\nstatus = %i\n", om, orad, c0, c2, c3, c4, c5, cG, status);
+
+//     if(status!=0) return 0;
+
+
+//     for(int i=0; i<hubble.size(); i++){
+//         // double alpha = c2/6*hubble[i]*acoord[i+1]*x[i]-3*c3*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2) + 15*c4*pow(hubble[i], 5)*pow(acoord[i+1]*x[i], 3) - 17.5*c5*pow(hubble[i], 7)*pow(acoord[i+1]*x[i], 4) - 3*cG*pow(hubble[i], 3)*acoord[i+1]*x[i];
+// 	// double gamma = c2/3*pow(hubble[i], 2)*acoord[i+1]*x[i]-c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2) + 2.5*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 4) - 2*cG*pow(hubble[i], 4)*acoord[i+1]*x[i];
+// 	// double beta = c2/6*pow(hubble[i], 2) -2*c3*pow(hubble[i], 4)*acoord[i+1]*x[i] + 9*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 2) - 10*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 3) - cG*pow(hubble[i], 4);
+// 	// double sigma = 2*hubble[i] + 2*c3*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 3) - 15*c4*pow(hubble[i], 5)*pow(acoord[i+1]*x[i], 4) + 21*c5*pow(hubble[i], 7)*pow(acoord[i+1]*x[i], 5) + 6*cG*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2);
+// 	// double lambda = 3*pow(hubble[i], 2) + orad/pow(acoord[i+1], 4) + c2/2*pow(hubble[i], 2)*pow(acoord[i+1]*x[i], 2) - 2*c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 3) + 7.5*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 4) - 9*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 5) - cG*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2);
+// 	// double omega = 2*c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2) - 12*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 3) + 15*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 4) + 4*cG*pow(hubble[i], 4)*acoord[i+1]*x[i];
 	
-	double x_prime = -acoord[i+1]*x[i]+(alpha*lambda-sigma*gamma)/(sigma*beta-alpha*omega);
-	double h_prime = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega);
+// 	// double x_prime = -acoord[i+1]*x[i]+(alpha*lambda-sigma*gamma)/(sigma*beta-alpha*omega);
+// 	// double h_prime = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega);
 	
-	double rho = c2/2*pow(hubble[i], 2)*pow(acoord[i+1]*x[i], 2) - 6*c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 3) + 22.5*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 4) - 21*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 5) - 9*cG*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2);
-	double p = c2/2*pow(hubble[i], 2)*pow(acoord[i+1]*x[i], 2) + 2*c3*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2)*(h_prime*acoord[i+1]*x[i]+x_prime*hubble[i]) - c4*(4.5*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 4) + 12*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 3)*x_prime + 15*pow(hubble[i], 5)*pow(acoord[i+1]*x[i], 4)*h_prime) + 3*c5*pow(hubble[i], 7)*pow(acoord[i+1]*x[i], 4)*(5*hubble[i]*x_prime+7*h_prime*acoord[i+1]*x[i]+2*hubble[i]*acoord[i+1]*x[i]) + cG*(6*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2)*h_prime + 4*pow(hubble[i], 4)*acoord[i+1]*x[i]*x_prime + 3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2));
+// 	// double rho = c2/2*pow(hubble[i], 2)*pow(acoord[i+1]*x[i], 2) - 6*c3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 3) + 22.5*c4*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 4) - 21*c5*pow(hubble[i], 8)*pow(acoord[i+1]*x[i], 5) - 9*cG*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2);
+// 	// double p = c2/2*pow(hubble[i], 2)*pow(acoord[i+1]*x[i], 2) + 2*c3*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2)*(h_prime*acoord[i+1]*x[i]+x_prime*hubble[i]) - c4*(4.5*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 4) + 12*pow(hubble[i], 6)*pow(acoord[i+1]*x[i], 3)*x_prime + 15*pow(hubble[i], 5)*pow(acoord[i+1]*x[i], 4)*h_prime) + 3*c5*pow(hubble[i], 7)*pow(acoord[i+1]*x[i], 4)*(5*hubble[i]*x_prime+7*h_prime*acoord[i+1]*x[i]+2*hubble[i]*acoord[i+1]*x[i]) + cG*(6*pow(hubble[i], 3)*pow(acoord[i+1]*x[i], 2)*h_prime + 4*pow(hubble[i], 4)*acoord[i+1]*x[i]*x_prime + 3*pow(hubble[i], 4)*pow(acoord[i+1]*x[i], 2));
 	
-	double OmegaM = om/(pow(hubble[i], 2)*pow(acoord[i], 3));
-	double OmegaR = orad/(pow(hubble[i], 2)*pow(acoord[i], 4));
-	double OmegaP = rho*3*pow(hubble[i], 2);
+// 	// double OmegaM = om/(pow(hubble[i], 2)*pow(acoord[i], 3));
+// 	// double OmegaR = orad/(pow(hubble[i], 2)*pow(acoord[i], 4));
+// 	// double OmegaP = rho*3*pow(hubble[i], 2);
 	
-	double w = p/rho;
-	double hubble_LCDM = sqrt(om/pow(acoord[i+1], 3)+orad/pow(acoord[i+1], 4)+(1-om-orad));
+// 	// double w = p/rho;
+// 	// double hubble_LCDM = sqrt(om/pow(acoord[i+1], 3)+orad/pow(acoord[i+1], 4)+(1-om-orad));
 
-	f << std::setprecision(12) << acoord[i+1] << " ; " << hubble[i] << " ; " << hubble_LCDM << " ; " << w << " ; " << x[i] << " ; " << OmegaP << " ; " << OmegaM << " ; " << OmegaR << std::endl;
-      }
+// 	// fprintf(f, "%.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f\n", acoord[i+1], hubble[i], hubble_LCDM, w, x[i], OmegaP, OmegaM, OmegaR);
+//         double alpha = c2/6*hubble[i]*intvar[i+1]*x[i]-3*c3*pow(hubble[i], 3)*pow(intvar[i+1]*x[i], 2) + 15*c4*pow(hubble[i], 5)*pow(intvar[i+1]*x[i], 3) - 17.5*c5*pow(hubble[i], 7)*pow(intvar[i+1]*x[i], 4) - 3*cG*pow(hubble[i], 3)*intvar[i+1]*x[i];
+// 	double gamma = c2/3*pow(hubble[i], 2)*intvar[i+1]*x[i]-c3*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 2) + 2.5*c5*pow(hubble[i], 8)*pow(intvar[i+1]*x[i], 4) - 2*cG*pow(hubble[i], 4)*intvar[i+1]*x[i];
+// 	double beta = c2/6*pow(hubble[i], 2) -2*c3*pow(hubble[i], 4)*intvar[i+1]*x[i] + 9*c4*pow(hubble[i], 6)*pow(intvar[i+1]*x[i], 2) - 10*c5*pow(hubble[i], 8)*pow(intvar[i+1]*x[i], 3) - cG*pow(hubble[i], 4);
+// 	double sigma = 2*hubble[i] + 2*c3*pow(hubble[i], 3)*pow(intvar[i+1]*x[i], 3) - 15*c4*pow(hubble[i], 5)*pow(intvar[i+1]*x[i], 4) + 21*c5*pow(hubble[i], 7)*pow(intvar[i+1]*x[i], 5) + 6*cG*pow(hubble[i], 3)*pow(intvar[i+1]*x[i], 2);
+// 	double lambda = 3*pow(hubble[i], 2) + orad/pow(intvar[i+1], 4) + c2/2*pow(hubble[i], 2)*pow(intvar[i+1]*x[i], 2) - 2*c3*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 3) + 7.5*c4*pow(hubble[i], 6)*pow(intvar[i+1]*x[i], 4) - 9*c5*pow(hubble[i], 8)*pow(intvar[i+1]*x[i], 5) - cG*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 2);
+// 	double omega = 2*c3*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 2) - 12*c4*pow(hubble[i], 6)*pow(intvar[i+1]*x[i], 3) + 15*c5*pow(hubble[i], 8)*pow(intvar[i+1]*x[i], 4) + 4*cG*pow(hubble[i], 4)*intvar[i+1]*x[i];
 
-  } else if(coord)
-  {
-    cout << "acoord" << endl;
+// 	double x_prime = -intvar[i+1]*x[i]+(alpha*lambda-sigma*gamma)/(sigma*beta-alpha*omega);
+// 	double h_prime = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega);
+	
+// 	double rho = c2/2*pow(hubble[i], 2)*pow(intvar[i+1]*x[i], 2) - 6*c3*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 3) + 22.5*c4*pow(hubble[i], 6)*pow(intvar[i+1]*x[i], 4) - 21*c5*pow(hubble[i], 8)*pow(intvar[i+1]*x[i], 5) - 9*cG*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 2);
+// 	double p = c2/2*pow(hubble[i], 2)*pow(intvar[i+1]*x[i], 2) + 2*c3*pow(hubble[i], 3)*pow(intvar[i+1]*x[i], 2)*(h_prime*intvar[i+1]*x[i]+x_prime*hubble[i]) - c4*(4.5*pow(hubble[i], 6)*pow(intvar[i+1]*x[i], 4) + 12*pow(hubble[i], 6)*pow(intvar[i+1]*x[i], 3)*x_prime + 15*pow(hubble[i], 5)*pow(intvar[i+1]*x[i], 4)*h_prime) + 3*c5*pow(hubble[i], 7)*pow(intvar[i+1]*x[i], 4)*(5*hubble[i]*x_prime+7*h_prime*intvar[i+1]*x[i]+2*hubble[i]*intvar[i+1]*x[i]) + cG*(6*pow(hubble[i], 3)*pow(intvar[i+1]*x[i], 2)*h_prime + 4*pow(hubble[i], 4)*intvar[i+1]*x[i]*x_prime + 3*pow(hubble[i], 4)*pow(intvar[i+1]*x[i], 2));
+	
+// 	double OmegaM = om/(pow(hubble[i], 2)*pow(intvar[i], 3));
+// 	double OmegaR = orad/(pow(hubble[i], 2)*pow(intvar[i], 4));
+// 	double OmegaP = rho*3*pow(hubble[i], 2);
+	
+// 	double w = p/rho;
+// 	double hubble_LCDM = sqrt(om/pow(intvar[i+1], 3)+orad/pow(intvar[i+1], 4)+(1-om-orad));
 
-    f.open(name, ios::out );
+// 	fprintf(f, "%.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f\n", intvar[i+1], hubble[i], hubble_LCDM, w, x[i], OmegaP, OmegaM, OmegaR);
+//     }
 
-    double amin = 0.000908;
-    std::vector<double> acoord;
-    SetAcoord(acoord, amin);
+//   } else if(coord == JNEVEUa)
+//   {
+//     printf("acoord\n");
 
-    sort(acoord.begin(), acoord.end(), std::greater<double>());
+//     f = fopen(name, "w");
 
-    std::vector<double> hubble(acoord.size(), 999999);
-    std::vector<double> x(acoord.size(), 999999);
+//     double amin = 0.000908;
+//     // std::vector<double> acoord;
+//     // SetAcoord(acoord, amin, barreira);
+//     SetAcoord(amin);
 
-    if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
-    {
-      status = calcHubbleGalileon(hubble, x, acoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
-    }
-    else {
-      calcHubbleTracker(hubble, x, acoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
-    }
+//     // sort(acoord.begin(), acoord.end(), std::greater<double>());
+//     sort(intvar.begin(), intvar.end(), std::greater<double>());
 
-    std::cout << "OmegaM0 = " << om << std::endl;
-    std::cout << "OmegaR0 = " << orad << std::endl;
-    std::cout << "c0 = " << c0 << std::endl;
-    std::cout << "c2 = " << c2 << std::endl;
-    std::cout << "c3 = " << c3 << std::endl;
-    std::cout << "c4 = " << c4 << std::endl;
-    std::cout << "c5 = " << c5 << std::endl;
-    std::cout << "cG = " << cG << std::endl;
-    std::cout << "\n\nstatus = " << status << "\n" << std::endl;
+//     // std::vector<double> hubble(acoord.size(), 999999);
+//     // std::vector<double> x(acoord.size(), 999999);
+//     hubble.resize(intvar.size(), 999999);
+//     x.resize(intvar.size(), 999999);
 
-    if(status!=0) return 0;
+//     if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
+//     {
+//       // status = calcHubbleGalileon(hubble, x, acoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
+//       status = calcHubbleGalileon();
+//     }
+//     else {
+//       // calcHubbleTracker(hubble, x, acoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
+//       calcHubbleTracker();
+//     }
 
-    for(int i=0; i<hubble.size(); i++)
-    {
-      double OmegaM = om/(pow(hubble[i], 2)*pow(acoord[i], 3));
-      double OmegaR = orad/(pow(hubble[i], 2)*pow(acoord[i], 4));
-      double OmegaP = (c2/2.0*pow(acoord[i]*hubble[i]*x[i], 2) - 6.0*c3*hubble[i]*pow(acoord[i]*hubble[i]*x[i], 3) + 22.5*c4*pow(hubble[i], 2)*pow(acoord[i]*hubble[i]*x[i], 4) - 21.0*c5*pow(hubble[i], 3)*pow(acoord[i]*hubble[i]*x[i], 5) - 9*cG*pow(hubble[i], 2)*pow(acoord[i]*hubble[i]*x[i], 2) )/(3.0*pow(hubble[i], 2));
 
-      double hubble_LCDM = sqrt(om/pow(acoord[i+1], 3)+orad/pow(acoord[i+1], 4)+(1-om-orad));
+//     printf("OmegaM0 = %f\nOmegaR0 = %f\nc0 = %f\nc2 = %f\nc3 = %f\nc4 = %f\nc5 = %f\ncG = %f\n\n\nstatus = %i\n", om, orad, c0, c2, c3, c4, c5, cG, status);
 
-      f << 1/acoord[i]-1 << " ; " << hubble[i] << " ; " << hubble_LCDM << " ; " << x[i] << " ; " << OmegaP << " ; " << OmegaM << " ; " << OmegaR << std::endl;
-    }
+//     if(status!=0) return 0;
 
-  } else
-  {
-    cout << "zcoord" << endl;
+//     for(int i=0; i<hubble.size(); i++)
+//     {
+//       // double OmegaM = om/(pow(hubble[i], 2)*pow(acoord[i], 3));
+//       // double OmegaR = orad/(pow(hubble[i], 2)*pow(acoord[i], 4));
+//       // double OmegaP = (c2/2.0*pow(acoord[i]*hubble[i]*x[i], 2) - 6.0*c3*hubble[i]*pow(acoord[i]*hubble[i]*x[i], 3) + 22.5*c4*pow(hubble[i], 2)*pow(acoord[i]*hubble[i]*x[i], 4) - 21.0*c5*pow(hubble[i], 3)*pow(acoord[i]*hubble[i]*x[i], 5) - 9*cG*pow(hubble[i], 2)*pow(acoord[i]*hubble[i]*x[i], 2) )/(3.0*pow(hubble[i], 2));
 
-    f.open(name, ios::out );
+//       // double hubble_LCDM = sqrt(om/pow(acoord[i+1], 3)+orad/pow(acoord[i+1], 4)+(1-om-orad));
 
-    double zmax = 1100;
-    double amin = 1/(1+zmax);
-    std::vector<double> zcoord;
-    SetAcoord(zcoord, amin);
+//       // fprintf(f, "%.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f\n", 1/acoord[i]-1, hubble[i], hubble_LCDM, x[i], OmegaP, OmegaM, OmegaR);
+//       double OmegaM = om/(pow(hubble[i], 2)*pow(intvar[i], 3));
+//       double OmegaR = orad/(pow(hubble[i], 2)*pow(intvar[i], 4));
+//       double OmegaP = (c2/2.0*pow(intvar[i]*hubble[i]*x[i], 2) - 6.0*c3*hubble[i]*pow(intvar[i]*hubble[i]*x[i], 3) + 22.5*c4*pow(hubble[i], 2)*pow(intvar[i]*hubble[i]*x[i], 4) - 21.0*c5*pow(hubble[i], 3)*pow(intvar[i]*hubble[i]*x[i], 5) - 9*cG*pow(hubble[i], 2)*pow(intvar[i]*hubble[i]*x[i], 2) )/(3.0*pow(hubble[i], 2));
 
-    sort(zcoord.begin(), zcoord.end(), std::greater<double>());
+//       double hubble_LCDM = sqrt(om/pow(intvar[i+1], 3)+orad/pow(intvar[i+1], 4)+(1-om-orad));
 
-    for(int i=0;i<zcoord.size();i++) {zcoord[i]=1/(1+zcoord[i]);}
-    std::vector<double> hubble(zcoord.size(), 999999);
-    std::vector<double> x(zcoord.size(), 999999);
+//       fprintf(f, "%.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f\n", 1/intvar[i]-1, hubble[i], hubble_LCDM, x[i], OmegaP, OmegaM, OmegaR);
+//     }
 
-    double op = 1.5*c2 - 18*c3 + 67.5*c4 - 63*c5 - 27*cG;
+// } else if(coord == JNEVEUz)
+//   {
+//     printf("zcoord\n");
 
-    if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
-    {
-      status = calcHubbleGalileon(hubble, x, zcoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
-    }
-    else {
-      std::cout << "Tracker " << std::endl;
-      calcHubbleTracker(hubble, x, zcoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
-    }
+//     f = fopen(name, "w");
 
-    std::cout << "OmegaM0 = " << om << std::endl;
-    std::cout << "OmegaR0 = " << orad << std::endl;
-    std::cout << "OmegaP0 = " << op << std::endl;
-    std::cout << "c0 = " << c0 << std::endl;
-    std::cout << "c2 = " << c2 << std::endl;
-    std::cout << "c3 = " << c3 << std::endl;
-    std::cout << "c4 = " << c4 << std::endl;
-    std::cout << "c5 = " << c5 << std::endl;
-    std::cout << "cG = " << cG << std::endl;
-    std::cout << "\n\nstatus = " << status << "\n" << std::endl;
+//     double zmax = 1100;
+//     double amin = 1/(1+zmax);
+//     // std::vector<double> zcoord;
+//     // SetAcoord(zcoord, amin, barreira);
+//     SetAcoord(amin);
 
-    if(status!=0) return 0;
+//     // sort(zcoord.begin(), zcoord.end(), std::greater<double>());
+//     sort(intvar.begin(), intvar.end(), std::greater<double>());
 
-    for(int i=0; i<zcoord.size(); i++)
-    {
-      double OmegaM = om*pow(1+zcoord[i], 3)/pow(hubble[i], 2);
-      double OmegaR = orad*pow(1+zcoord[i], 4)/pow(hubble[i], 2);
-      double OmegaP = (c2/2.0*pow(-(1+zcoord[i])*hubble[i]*x[i], 2) - 6.0*c3*hubble[i]*pow(-(1+zcoord[i])*hubble[i]*x[i], 3) + 22.5*c4*pow(hubble[i], 2)*pow(-(1+zcoord[i])*hubble[i]*x[i], 4) - 21.0*c5*pow(hubble[i], 3)*pow(-(1+zcoord[i])*hubble[i]*x[i], 5) - 9*cG*pow(hubble[i], 2)*pow(-(1+zcoord[i])*hubble[i]*x[i], 2) )/(3.0*pow(hubble[i], 2));
+//     // for(int i=0;i<zcoord.size();i++) {zcoord[i]=1/(1+zcoord[i]);}
+//     // std::vector<double> hubble(zcoord.size(), 999999);
+//     // std::vector<double> x(zcoord.size(), 999999);
+//     for(int i=0;i<intvar.size();i++) {intvar[i]=1/(1+intvar[i]);}
+//     hubble.resize(intvar.size(), 999999);
+//     x.resize(intvar.size(), 999999);
 
-      double hubble_LCDM = sqrt(om*pow(1+zcoord[i+1], 3)+orad*pow(1+zcoord[i+1], 4)+(1-om-orad));
+//     double op = 1.5*c2 - 18*c3 + 67.5*c4 - 63*c5 - 27*cG;
 
-      f << std::setprecision(12) << zcoord[i] << " ; " << hubble[i] << " ; " << hubble_LCDM << " ; " << x[i] << " ; " << OmegaP << " ; " << OmegaM << " ; " << OmegaR << std::endl;
-    }
+//     if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
+//     {
+//       // status = calcHubbleGalileon(hubble, x, zcoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
+//       status = calcHubbleGalileon();
+//     }
+//     else {
+//       printf("Tracker\n");
+//       // calcHubbleTracker(hubble, x, zcoord, om, orad, c2, c3, c4, c5, cG, c0, coord);
+//       calcHubbleTracker();
+//     }
 
+//     printf("OmegaM0 = %f\nOmegaR0 = %f\nOmegaPo = %f\nc0 = %f\nc2 = %f\nc3 = %f\nc4 = %f\nc5 = %f\ncG = %f\n\n\nstatus = %i\n", om, orad, op, c0, c2, c3, c4, c5, cG, status);
+
+//     if(status!=0) return 0;
+
+//     // for(int i=0; i<zcoord.size(); i++)
+//     // {
+//     //   double OmegaM = om*pow(1+zcoord[i], 3)/pow(hubble[i], 2);
+//     //   double OmegaR = orad*pow(1+zcoord[i], 4)/pow(hubble[i], 2);
+//     //   double OmegaP = (c2/2.0*pow(-(1+zcoord[i])*hubble[i]*x[i], 2) - 6.0*c3*hubble[i]*pow(-(1+zcoord[i])*hubble[i]*x[i], 3) + 22.5*c4*pow(hubble[i], 2)*pow(-(1+zcoord[i])*hubble[i]*x[i], 4) - 21.0*c5*pow(hubble[i], 3)*pow(-(1+zcoord[i])*hubble[i]*x[i], 5) - 9*cG*pow(hubble[i], 2)*pow(-(1+zcoord[i])*hubble[i]*x[i], 2) )/(3.0*pow(hubble[i], 2));
+
+//     //   double hubble_LCDM = sqrt(om*pow(1+zcoord[i+1], 3)+orad*pow(1+zcoord[i+1], 4)+(1-om-orad));
+
+//     //   fprintf(f, "%.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f\n", zcoord[i], hubble[i], hubble_LCDM, x[i], OmegaP, OmegaM, OmegaR);
+//     // }
+//     for(int i=0; i<intvar.size(); i++)
+//     {
+//       double OmegaM = om*pow(1+intvar[i], 3)/pow(hubble[i], 2);
+//       double OmegaR = orad*pow(1+intvar[i], 4)/pow(hubble[i], 2);
+//       double OmegaP = (c2/2.0*pow(-(1+intvar[i])*hubble[i]*x[i], 2) - 6.0*c3*hubble[i]*pow(-(1+intvar[i])*hubble[i]*x[i], 3) + 22.5*c4*pow(hubble[i], 2)*pow(-(1+intvar[i])*hubble[i]*x[i], 4) - 21.0*c5*pow(hubble[i], 3)*pow(-(1+intvar[i])*hubble[i]*x[i], 5) - 9*cG*pow(hubble[i], 2)*pow(-(1+intvar[i])*hubble[i]*x[i], 2) )/(3.0*pow(hubble[i], 2));
+
+//       double hubble_LCDM = sqrt(om*pow(1+intvar[i+1], 3)+orad*pow(1+intvar[i+1], 4)+(1-om-orad));
+
+//       fprintf(f, "%.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f ; %.12f\n", intvar[i], hubble[i], hubble_LCDM, x[i], OmegaP, OmegaM, OmegaR);
+//     }
+
+//   }
+
+//   return 0;
+
+// }
+
+int test(){
+
+  fflush(stdout);
+
+  double orad = 8.2987687251764e-5;
+
+  // arrays_("galileon.ini", "barreira_background_sample/barreira_galileon_4_5e-6_test.dat", &orad);
+  arrays_("galileon.ini", &orad);
+  FILE* f = fopen("linear_interpolation.txt", "w");
+
+  for(int i = 2; i< intvar.size()-1; i++){
+    double point = (intvar[i]+intvar[i+1])/2;
+    double* hx = handxofa_(&point);
+    fprintf(f, "%.16f ; %.16f ; %.16f\n", point, (*hx), (*(hx+1)));
   }
 
   return 0;
 
 }
-
-

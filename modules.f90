@@ -523,6 +523,7 @@
     else
         atol = tol/1000/exp(AccuracyBoost-1)
     end if
+
     DeltaTime=rombint(dtauda,a1,a2,atol)
 
     end function DeltaTime
@@ -662,7 +663,7 @@
     rs = rombint(dsound_da,1d-8,astar,atol)
     DA = AngularDiameterDistance(zstar)/astar
     CosmomcTheta = rs/DA
-    !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
+    !print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
     end function CosmomcTheta
 

@@ -837,7 +837,7 @@ inline int lumdist::calcIntHubbleGalileon(std::vector<double>& intval, const std
 
 int main()
 {
-  char* name = "barreira_background_sample/barreira_galileon_1_5e-9.dat";
+  char* name = "barreira_background_sample/barreira_galileon_1_1e-4_test.dat";
   ofstream f;
 
   // Galileon parameters from Barreira
@@ -847,9 +847,9 @@ int main()
   double c4 = -1.7;
   double c5 = -1.0;
   double cG = 0;
-  double c2 = -27.59;
-  double age = 14.375;
-  double ratio_rho = 5e-9;
+  double c2 = -27.00;
+  double age = 13.978;
+  double ratio_rho = 1e-4;
   //double c2 = -27.49;
   //double age = 14.317;
   //double ratio_rho = 1e-6;    
