@@ -59,6 +59,7 @@
     use precision
     use ModelParams
     real(dl)  GetOmegak
+
     GetOmegak = 1 - (CP%omegab+CP%omegac+CP%omegav+CP%omegan)
 
     end function GetOmegak
@@ -79,9 +80,8 @@
       use interface
       implicit none
 
-!!$      CHARACTER(len=Ini_max_string_len) :: InputFile, OutputFile, outroot
       CHARACTER(len=Ini_max_string_len) :: InputFile, outroot
-      real(dl) :: grhor2, rhonu, omegar
+      real(dl) :: grhora2, rhonu, omegar
       integer nu_i
 
 
@@ -90,24 +90,19 @@
       if (GetParamCount() /= 0)  InputFile = trim(GetParam(1)) //C_NULL_CHAR
       if (InputFile == '') stop 'No parameter input file'
       
-      if (use_galileon) then
-         !Set the output file to write a, h and x for the background into
-         !outroot = Ini_Read_String('output_root')
-         !if (outroot /= '') outroot = trim(outroot) // '_'
-         !OutputFile = trim(outroot) // 'background.dat' // C_NULL_CHAR
-         
-         grhor2 = grhog+grhornomass
+      if (use_galileon) then         
+         grhora2 = grhog+grhornomass
          if (CP%Num_Nu_massive /= 0) then
             !Get massive neutrino density relative to massless
             do nu_i = 1, CP%nu_mass_eigenstates
                call Nu_rho(nu_masses(nu_i),rhonu)
-               grhor2=grhor2+rhonu*grhormass(nu_i)
+               grhora2=grhora2+rhonu*grhormass(nu_i)
             end do
          end if
 
          !print *, grhog, grhornomass, grhor2, rhonu, grhormass(nu_i)
 
-         omegar = grhor2/grhom
+         omegar = grhora2/grhom
 
          !Set the background with parameters from input file
 !!$         call arrays(InputFile, OutputFile, omegar)
@@ -124,13 +119,16 @@
     use ModelParams
     use MassiveNu
     use LambdaGeneral
+
     !Modified by Clement Leloup
     use interface
+
     implicit none
     real(dl) dtauda
     real(dl), intent(IN) :: a
     real(dl) rhonu,grhoa2, a2, a4, h2, hbar2
     integer nu_i
+
     !Modified by Clement Leloup
     type(C_PTR) :: cptr_to_handx
     real(kind=C_DOUBLE), pointer :: handx(:)
@@ -140,7 +138,6 @@
 
     !Modified by Clement Leloup
     if (use_galileon .and. a .ge. 9.99999d-7) then
-       ! Do we take into account neutrinos as we should ?
        a4=a2**2
        
        cptr_to_handx = handxofa(a)
@@ -151,10 +148,6 @@
     else 
        ! 8*pi*G*rho*a**4.
        grhoa2=grhok*a2+(grhoc+grhob)*a+grhog+grhornomass
-!!$       if (use_galileon .and. a .ge. 9.99999d-7) then
-!!$          grhogal_t=grhogal(a)
-!!$          grhoa2 = grhoa2+grhogal_t*z2
-!!$       else if (w_lam == -1._dl) then
        if (w_lam == -1._dl) then
           grhoa2=grhoa2+grhov*a2**2
        else
@@ -218,7 +211,7 @@
         real(dl) q, q2
         real(dl) k_buf,k2_buf ! set in initial
 
-        integer w_ix !Index of two quintessence equations
+        integer w_ix !Index of two quintessence/galileon equations
         integer r_ix !Index of the massless neutrino hierarchy
         integer g_ix !Index of the photon neutrino hierarchy
 
@@ -604,7 +597,7 @@
     !Modified by Clement Leloup
     if(use_galileon) then
        EV%w_ix = neq+1
-       neq = neq+2 !Adding the equation of evolution of galileon perturbation (counting two equations since it's a second order equation, cf (48) from arXiv:1208.0600
+       neq = neq+2 !Adding the equation of evolution of galileon perturbation (counting two equations since it's a second order equation), cf (48) from arXiv:1208.0600
        maxeq = maxeq+2
     else if (w_lam /= -1 .and. w_Perturb) then
         EV%w_ix = neq+1
@@ -1325,6 +1318,12 @@
     vb  =y(5)
     vbdot =yprime(5)
 
+    !Modified by Clement Leloup
+    if (use_galileon) then
+       dphi = y(EV%w_ix)
+       dphiprime = y(EV%w_ix+1)
+    end if
+
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=grhob/a
@@ -1334,16 +1333,16 @@
     grhov_t=grhov*a**(-1-3*w_lam)
 
     !Modified by Clement Leloup
+    grho=grhob_t+grhoc_t+grhor_t+grhog_t
+    gpres=(grhog_t+grhor_t)/3
     if (use_galileon) then
-       if (a .ge. 9.99999d-7) then
-          grhogal_t=grhogal(a)
-          gpresgal_t=gpresgal(a)
-          grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhogal_t
-          gpres=(grhog_t+grhor_t)/3+gpresgal_t
-       end if
+       grhogal_t=grhogal(a)
+       gpresgal_t=gpresgal(a)
+       grho=grho+grhogal_t
+       gpres=gpres+gpresgal_t
     else 
-       grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-       gpres=(grhog_t+grhor_t)/3+grhov_t*w_lam
+       grho=grho+grhov_t
+       gpres=gpres+grhov_t*w_lam
     end if
 
     !  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
@@ -1371,15 +1370,24 @@
     !Modified by Clement Leloup
     !adotoa=sqrt((grho+grhok)/3)
     adotoa=1./(a*dtauda(a))
-    !print *, a, adotoa - 1./(a*dtauda(a))
 
     if (EV%no_nu_multpoles) then
-        z=(0.5_dl*dgrho/k + etak)/adotoa
-        dz= -adotoa*z - 0.5_dl*dgrho/k
-        clxr=-4*dz/k
-        qr=-4._dl/3*z
-        pir=0
-        pirdot=0
+
+       !Modified by Clement Leloup
+       if (use_galileon) then
+          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+          z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
+          dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
+       else
+          z=(0.5_dl*dgrho/k + etak)/adotoa
+          dz= -adotoa*z - 0.5_dl*dgrho/k
+       end if
+
+       clxr=-4*dz/k
+       qr=-4._dl/3*z
+       pir=0
+       pirdot=0
+
     else
         clxr=y(EV%r_ix)
         qr  =y(EV%r_ix+1)
@@ -1388,15 +1396,25 @@
     end if
 
     if (EV%no_phot_multpoles) then
-        z=(0.5_dl*dgrho/k + etak)/adotoa
-        dz= -adotoa*z - 0.5_dl*dgrho/k
-        clxg=-4*dz/k -4/k*opac(j)*(vb+z)
-        qg=-4._dl/3*z
-        pig=0
-        pigdot=0
-        octg=0
-        octgprime=0
-        qgdot = -4*dz/3
+
+       !Modified by Clement Leloup
+       if (use_galileon) then
+          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+          z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
+          dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
+       else
+          z=(0.5_dl*dgrho/k + etak)/adotoa
+          dz= -adotoa*z - 0.5_dl*dgrho/k
+       end if
+
+       clxg=-4*dz/k -4/k*opac(j)*(vb+z)
+       qg=-4._dl/3*z
+       pig=0
+       pigdot=0
+       octg=0
+       octgprime=0
+       qgdot = -4*dz/3
+
     else
         if (EV%TightCoupling) then
             pig = EV%pig
@@ -1427,13 +1445,11 @@
 
     !Modified by Clement Leloup
     if (use_galileon) then
-       dphi = y(EV%w_ix)
-       dphiprime = y(EV%w_ix+1)
        dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
        dgrho = dgrho + dgrhogal_t
        dgqgal_t = qgal(dgq, etak, dphi, dphiprime, a, k)
        dgq = dgq + dgqgal_t
-       dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, dphiprime, a, k)
+       dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, a, k)
        dgpi = dgpi + dgpigal_t
     end if
 
@@ -1466,7 +1482,7 @@
     end if
 
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
-    diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
+    diff_rhopi = pidot_sum - (4*dgpi+dgpi_diff)*adotoa
 
     !Maple's fortran output - see scal_eqs.map
     !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -1848,6 +1864,7 @@
     y(EV%g_ix+1)=InitVec(i_qg)
 
     !Modified by Clement Leloup
+    ! Galileon
     if (w_lam /= -1 .and. w_Perturb) then
         y(EV%w_ix) = InitVec(i_clxq) ! initial condition dphi = 0 for galileon
         y(EV%w_ix+1) = InitVec(i_vq) !initial condition dphiprime = 0 for galileon
@@ -2106,6 +2123,13 @@
     clxb=ay(4)
     vb=ay(5)
 
+    ! Galileon field
+    !Modified by Clement Leloup
+    if(use_galileon) then
+       dphi = ay(EV%w_ix)
+       dphiprime = ay(EV%w_ix+1)
+    end if
+
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=grhob/a
@@ -2115,9 +2139,7 @@
     
     !Modified by Clement Leloup
     if (use_galileon) then
-       if (a .ge. 9.99999d-7) then
-          grhogal_t=grhogal(a)
-       end if
+       grhogal_t=grhogal(a)
     else
        if (w_lam==-1._dl) then
           grhov_t=grhov*a2
@@ -2147,12 +2169,11 @@
     end if
 
     !Modified by Clement Leloup
+    grho=grho_matter+grhor_t+grhog_t
     if (use_galileon) then
-       if (a .ge. 9.99999d-7) then
-          grho=grho_matter+grhor_t+grhog_t+grhogal_t
-       end if
+       grho=grho+grhogal_t
     else
-       grho = grho_matter+grhor_t+grhog_t+grhov_t
+       grho = grho+grhov_t
     end if
 
     !Modified by Clement Leloup
@@ -2161,6 +2182,8 @@
        !adotoa=sqrt(grho/3)
         cothxor=1._dl/tau
     else
+       !Modified by Clement Leloup
+       !Careful, no change here in case of non flat universe, should change to adapted 1/(a*dtauda)
         adotoa=sqrt((grho+grhok)/3._dl)
         cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
     end if
@@ -2175,26 +2198,47 @@
     end if
 
     if (EV%no_nu_multpoles) then
-        !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
-        !Approximate total density variables with just matter terms
-        z=(0.5_dl*dgrho/k + etak)/adotoa
-        dz= -adotoa*z - 0.5_dl*dgrho/k
-        clxr=-4*dz/k
-        qr=-4._dl/3*z
-        pir=0
+
+       !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
+       !Approximate total density variables with just matter terms
+
+       !Modified by Clement Leloup
+       if (use_galileon) then
+          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+          z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
+          dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
+       else
+          z=(0.5_dl*dgrho/k + etak)/adotoa
+          dz= -adotoa*z - 0.5_dl*dgrho/k
+       end if
+
+       clxr=-4*dz/k
+       qr=-4._dl/3*z
+       pir=0
+
     else
-        !  Massless neutrinos
-        clxr=ay(EV%r_ix)
-        qr  =ay(EV%r_ix+1)
-        pir =ay(EV%r_ix+2)
+       !  Massless neutrinos
+       clxr=ay(EV%r_ix)
+       qr  =ay(EV%r_ix+1)
+       pir =ay(EV%r_ix+2)
     endif
 
     if (EV%no_phot_multpoles) then
         if (.not. EV%no_nu_multpoles) then
-            z=(0.5_dl*dgrho/k + etak)/adotoa
-            dz= -adotoa*z - 0.5_dl*dgrho/k
-            clxg=-4*dz/k-4/k*opacity*(vb+z)
-            qg=-4._dl/3*z
+
+           !Modified by Clement Leloup
+           if (use_galileon) then
+              dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+              z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
+              dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
+           else
+              z=(0.5_dl*dgrho/k + etak)/adotoa
+              dz= -adotoa*z - 0.5_dl*dgrho/k
+           end if
+
+           clxg=-4*dz/k-4/k*opacity*(vb+z)
+           qg=-4._dl/3*z
+
         else
             clxg=clxr-4/k*opacity*(vb+z)
             qg=qr
@@ -2221,8 +2265,6 @@
 
     !Modified by Clement Leloup
     if(use_galileon) then
-       dphi = ay(EV%w_ix)
-       dphiprime = ay(EV%w_ix+1)
        dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
        dgrho = dgrho + dgrhogal_t
        dgqgal_t = qgal(dgq, etak, dphi, dphiprime, a, k)
@@ -2262,16 +2304,17 @@
         EV%OutputTransfer(Transfer_r) = clxr
         clxnu_all=0
         dgpi  = grhor_t*pir + grhog_t*pig
-        
-        !Modified by Clement Leloup
-        if (use_galileon) then
-           dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, dphiprime, a, k)
-           dgpi = dgpi + dgpigal_t
-        end if
 
         if (CP%Num_Nu_Massive /= 0) then
             call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
         end if
+        
+        !Modified by Clement Leloup
+        if (use_galileon) then
+           dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, a, k)
+           dgpi = dgpi + dgpigal_t
+        end if
+
         EV%OutputTransfer(Transfer_nu) = clxnu_all
         EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
         EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
@@ -2301,15 +2344,14 @@
     if (EV%TightCoupling) then
         !  ddota/a
         !Modified by Clement Leloup
+        gpres=gpres+(grhog_t+grhor_t)/3
         if (use_galileon) then
-           if (a .ge. 9.99999d-7) then
-              gpresgal_t=gpresgal(a)
-              gpres=gpres+(grhog_t+grhor_t)/3+gpresgal_t
-           end if
+           gpresgal_t=gpresgal(a)
+           gpres=gpres+gpresgal_t
         else
-           gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
-           adotdota=(adotoa*adotoa-gpres)/2
+           gpres=gpres+grhov_t*w_lam
         end if
+        adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
 
@@ -2323,6 +2365,12 @@
 
             !  8*pi*G*a*a*SUM[rho_i*sigma_i]
             dgs = grhog_t*pig+grhor_t*pir
+
+            !Modified by Clement Leloup
+            if (use_galileon) then
+               dgpigal_t = Pigal(dgrho, dgq, dgs, etak, dphi, a, k)
+               dgs = dgs + dgpigal_t
+            end if
 
             ! Define shear derivative to first order
             sigmadot = -2*adotoa*sigma-dgs/k+etak
@@ -2572,22 +2620,23 @@
     grhog_t=grhog/a2
 
     !Modified by Clement Leloup
+    grho=grhob_t+grhoc_t+grhor_t+grhog_t
+    gpres=(grhog_t+grhor_t)/3._dl
     if (use_galileon) then
-       if (a .ge. 9.99999d-7) then
-          grhogal_t=grhogal(a)
-          gpresgal_t=gpresgal(a)
-          grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhogal_t
-          gpres=(grhog_t+grhor_t)/3._dl+gpresgal_t
-       end if
+       grhogal_t=grhogal(a)
+       gpresgal_t=gpresgal(a)
+       grho=grho+grhogal_t
+       gpres=gpres+gpresgal_t
     else
        grhov_t=grhov*a**(-1-3*w_lam)
-       grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-       gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_lam
+       grho=grho+grhov_t
+       gpres=gpres+grhov_t*w_lam
     end if
 
     !Modified by Clement Leloup
     !adotoa=sqrt(grho/3._dl)
     adotoa=1./(a*dtauda(a))
+
     adotdota=(adotoa*adotoa-gpres)/2
 
     photbar=grhog_t/grhob_t
@@ -2719,7 +2768,7 @@
     real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,polter
 
     !Modified by Clement Leloup
-    real(kind=C_DOUBLE) grhogal_t, gpresgal_t
+    real(kind=C_DOUBLE) grhogal_t
     real(dl) dtauda
 
     real(dl) Hchi,pinu, pig
@@ -2747,23 +2796,16 @@
     grhog_t=grhog/a2
 
     !Modified by Clement Leloup
+    grho=grhob_t+grhoc_t+grhor_t+grhog_t
     if (use_galileon) then
-       if (a .ge. 9.99999d-7) then
-          grhogal_t=grhogal(a)
-       end if
+       grhogal_t=grhogal(a)
+       grho=grho+grhogal_t
     else if (w_lam==-1._dl) then
         grhov_t=grhov*a2
+        grho=grho+grhov_t
     else
         grhov_t=grhov*a**(-1-3*w_lam)
-    end if
-
-    !Modified by Clement Leloup
-    if (use_galileon) then
-       if (a .ge. 9.99999d-7) then
-          grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhogal_t
-       end if
-    else
-       grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+        grho=grho+grhov_t
     end if
 
     !Do massive neutrinos

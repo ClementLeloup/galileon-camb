@@ -77,7 +77,8 @@ $(OUTPUT_DIR)/$(EQUATIONS).o: $(OUTPUT_DIR)/bessels.o $(OUTPUT_DIR)/interface.o
 $(OUTPUT_DIR)/$(NONLINEAR).o:  $(OUTPUT_DIR)/modules.o $(OUTPUT_DIR)/$(EQUATIONS).o
 $(OUTPUT_DIR)/lensing.o: $(OUTPUT_DIR)/bessels.o
 $(OUTPUT_DIR)/$(BISPECTRUM).o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/modules.o
-$(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o $(OUTPUT_DIR)/$(BISPECTRUM).o
+##Modified by Clement Leloup
+$(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o $(OUTPUT_DIR)/$(BISPECTRUM).o $(OUTPUT_DIR)/interface.o
 $(OUTPUT_DIR)/camb.o: $(OUTPUT_DIR)/cmbmain.o
 $(OUTPUT_DIR)/Matrix_utils.o: $(OUTPUT_DIR)/utils.o
 camb: directories $(CAMBOBJ) $(DRIVER)

@@ -114,6 +114,7 @@
 
     integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for k>2*l_smooth_sample
 
+    !Modified by Clement Leloup
     real(dl) :: fixq = 0._dl !Debug output of one q
 
     real(dl) :: ALens = 1._dl
@@ -914,6 +915,10 @@
 
     subroutine CalcScalarSources(EV,taustart)
     use Transfer
+
+    !Modified by Clement Leloup
+    use interface
+
     implicit none
     type(EvolutionVars) EV
     real(dl) tau,tol1,tauend, taustart
@@ -921,6 +926,10 @@
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
 
     real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth
+
+    !Modified by Clement Leloup
+    real(dl) dgrho, dgrhogal,  dgq, dgqgal, dgpi, dgpigal, phi, deltagal
+
     external dtauda
 
     if (fixq/=0._dl) then
@@ -940,7 +949,7 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve_q005.txt',1)
+        call CreateTxtFile('evolve/evolve_q001.txt',1)
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -950,7 +959,28 @@
             ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
             delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
             growth= ddelta/delta/adotoa
-            write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
+
+            !Modified by Clement Leloup
+            dgrho = grhob/y(1)*y(4) + grhoc/y(1)*y(3) + grhornomass/(y(1)*y(1))*y(EV%r_ix) + grhog/(y(1)*y(1))*y(EV%g_ix)
+            dgrhogal = Chigal(dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
+            dgrho = dgrho + dgrhogal
+            dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
+            dgqgal = qgal(dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
+            dgq = dgq + dgqgal
+            dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
+            dgpigal = Pigal(dgrho, dgq, dgpi, y(2), y(EV%w_ix), y(1), EV%q)
+            dgpi = dgpi + dgpigal
+
+            deltagal = 0
+            if(y(1) .ge. 9.99999d-7) then
+               deltagal = dgrhogal/grhogal(y(1))
+            end if
+
+            phi = -(dgrho + 3*dgq*adotoa/(EV%q))/((EV%q2)*2) - dgpi/(EV%q2)/2
+
+            !Modified by Clement Leloup
+            !write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
+            write (1,'(10E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
         end do
         close(1)
         stop
@@ -965,11 +995,18 @@
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
 
+        !Modified by Clement Leloup
+        !print *, "tau : ", tauend
+
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
         .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
             Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
+
+           !Modified by Clement Leloup
+           !print *, "tau : ", tau
+
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
             if (global_error_flag/=0) return
 
@@ -1070,6 +1107,7 @@
         if ( EV%q*tauend > max_etak_vector) then
             Src(EV%q_ix,1:SourceNum,j) = 0
         else
+
             call dverk(EV,EV%nvarv,derivsv,tau,yv,tauend,tol1,ind,c,EV%nvarv,wt) !tauend
 
             call outputv(EV,yv,EV%nvarv,j,tau,Src(EV%q_ix,CT_Temp,j),&
