@@ -2097,6 +2097,8 @@
     real(dl) dphi, dphiprime, dgqgal_t, dgrhogal_t, dgpigal_t
     real(dl) grhogal_t, gpresgal_t
     real(dl) dtauda
+    type(C_PTR) :: cptr_to_conserv
+    real(kind=C_DOUBLE), pointer :: conserv(:)
 
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
@@ -2493,6 +2495,16 @@
             end if
         end if
     end if ! no_nu_multpoles
+
+    !Modified by Clement Leloup
+    gpres=gpres+(grhog_t+grhor_t)/3
+    if (use_galileon) then
+       gpresgal_t=gpresgal(a)
+       gpres=gpres+gpresgal_t
+       cptr_to_conserv = conservation(grho, gpres, dgrho, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, etak, dphi, dphiprime, dphiprimeprime, a, k)
+       call C_F_POINTER(cptr_to_conserv, conserv, [2])
+       !print *, "conservation 1 : ", conserv(1)
+    end if
 
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return

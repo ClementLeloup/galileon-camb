@@ -115,7 +115,8 @@
     integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for k>2*l_smooth_sample
 
     !Modified by Clement Leloup
-    real(dl) :: fixq = 0._dl !Debug output of one q
+    !real(dl) :: fixq = 0._dl !Debug output of one q
+    real(dl) :: fixq = 0.001_dl !Debug output of one q
 
     real(dl) :: ALens = 1._dl
 
@@ -949,7 +950,7 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve/evolve_q001.txt',1)
+        call CreateTxtFile('evolve/evolve_q0001.txt',1)
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)

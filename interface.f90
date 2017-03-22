@@ -37,9 +37,9 @@ module interface
       real(kind=C_DOUBLE) :: dgq, etak, dphi, dphiprime, point, k, qgal
     end function qgal
 
-    function Pigal(dgrho, dgq, dgpi, etak, dphi, dphiprime, point, k) bind(C, name='Pigal_')
+    function Pigal(dgrho, dgq, dgpi, etak, dphi, point, k) bind(C, name='Pigal_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, etak, dphi, dphiprime, point, k, Pigal
+      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, etak, dphi, point, k, Pigal
     end function Pigal
 
     function dphisecond(dgrho, etak, dphi, dphiprime, point, k) bind(C, name='dphisecond_')
@@ -47,30 +47,11 @@ module interface
       real(kind=C_DOUBLE) :: dgrho, etak, dphi, dphiprime, point, k, dphisecond
     end function dphisecond
 
+    type(C_PTR) function conservation(grho, gpres, dgrho, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, eta, dphi, dphiprime, dphisecond, point, k) bind(C, name='conservation_')
+      import C_PTR, C_DOUBLE
+      real(kind=C_DOUBLE) :: grho, gpres, dgrho, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, eta, dphi, dphiprime, dphisecond, point, k
+    end function conservation
+
   end interface
 
 end module interface
-
-!!$PROGRAM appel_C
-!!$  use background_C
-!!$  IMPLICIT NONE
-!!$
-!!$  CHARACTER(len=40) :: infile = 'galileon.ini' //C_NULL_CHAR, outfile = 'background.txt' // C_NULL_CHAR
-!!$  type(C_PTR) :: cptr_to_handx
-!!$  real(kind=C_DOUBLE), pointer :: handx(:)
-!!$  logical :: ex
-!!$
-!!$  inquire(file=infile, exist=ex)
-!!$  IF (ex) THEN
-!!$     PRINT *, "File exists"
-!!$  END IF
-!!$
-!!$  call arrays(infile, outfile)
-!!$  call C_F_POINTER(cptr_to_array, h_array, [27639])
-!!$
-!!$  cptr_to_handx = handxofa(1.0007491242d-6)
-!!$  call C_F_POINTER(cptr_to_handx, handx, [2])
-!!$
-!!$  PRINT *, handx
-!!$
-!!$END PROGRAM appel_C
