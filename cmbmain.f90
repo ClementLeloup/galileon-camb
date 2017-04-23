@@ -116,7 +116,7 @@
 
     !Modified by Clement Leloup
     !real(dl) :: fixq = 0._dl !Debug output of one q
-    real(dl) :: fixq = 0.001_dl !Debug output of one q
+    real(dl) :: fixq = 1.0_dl !Debug output of one q
 
     real(dl) :: ALens = 1._dl
 
@@ -919,6 +919,7 @@
 
     !Modified by Clement Leloup
     use interface
+    use LambdaGeneral
 
     implicit none
     type(EvolutionVars) EV
@@ -950,7 +951,7 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve/evolve_q0001.txt',1)
+        call CreateTxtFile('evolve/evolve_q1.txt',1)
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -963,25 +964,30 @@
 
             !Modified by Clement Leloup
             dgrho = grhob/y(1)*y(4) + grhoc/y(1)*y(3) + grhornomass/(y(1)*y(1))*y(EV%r_ix) + grhog/(y(1)*y(1))*y(EV%g_ix)
-            dgrhogal = Chigal(dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
-            dgrho = dgrho + dgrhogal
             dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
-            dgqgal = qgal(dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
-            dgq = dgq + dgqgal
             dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
-            dgpigal = Pigal(dgrho, dgq, dgpi, y(2), y(EV%w_ix), y(1), EV%q)
-            dgpi = dgpi + dgpigal
-
-            deltagal = 0
-            if(y(1) .ge. 9.99999d-7) then
-               deltagal = dgrhogal/grhogal(y(1))
+            if (use_galileon) then
+               dgrhogal = Chigal(dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
+               dgrho = dgrho + dgrhogal
+               dgqgal = qgal(dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
+               dgq = dgq + dgqgal
+               dgpigal = Pigal(dgrho, dgq, dgpi, y(2), y(EV%w_ix), y(1), EV%q)
+               dgpi = dgpi + dgpigal
+               deltagal = 0
+               if (y(1) .ge. 9.99999d-7) then
+                  deltagal = dgrhogal/grhogal(y(1))
+               end if
             end if
 
             phi = -(dgrho + 3*dgq*adotoa/(EV%q))/((EV%q2)*2) - dgpi/(EV%q2)/2
 
             !Modified by Clement Leloup
             !write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
-            write (1,'(10E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
+            if (use_galileon) then
+               write (1,'(10E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
+            else
+               write (1,'(10E15.5)') tau, 0, 0, 0, 0, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
+            end if
         end do
         close(1)
         stop

@@ -2158,6 +2158,17 @@
     end if
 
     gpres=0
+
+    !Modified by Clement Leloup
+    gpres=gpres+(grhog_t+grhor_t)/3
+    if (use_galileon) then
+       gpresgal_t=gpresgal(a)
+       gpres=gpres+gpresgal_t
+    else
+       gpres=gpres+grhov_t*w_lam
+    end if
+
+
     grho_matter=grhob_t+grhoc_t
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
@@ -2286,17 +2297,23 @@
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
 
-    !Modified by Clement Leloup
-    if (use_galileon) then
-       ayprime(EV%w_ix) = dphiprime
-       dphiprimeprime = dphisecond(dgrho, etak, dphi, dphiprime, a, k)
-       ayprime(EV%w_ix+1) = dphiprimeprime
-    else if (w_lam /= -1 .and. w_Perturb) then
-        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-            -(1+w_lam)*k*vq -(1+w_lam)*k*z
-
-        ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
-    end if
+!!$    !Modified by Clement Leloup
+!!$    if (use_galileon) then
+!!$       ayprime(EV%w_ix) = dphiprime
+!!$       dphiprimeprime = dphisecond(dgrho, dgq, z, etak, dphi, dphiprime, a, k, grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot)
+!!$       dphiprimeprime = dphisecond(grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, &
+!!$            grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgrho, dgq, z, &
+!!$            etak, dphi, dphiprime, a, k)
+!!$       ayprime(EV%w_ix+1) = dphiprimeprime
+!!$
+!!$       call zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, etak, dphi, dphiprime, dphiprimeprime, a, k)
+!!$
+!!$    else if (w_lam /= -1 .and. w_Perturb) then
+!!$        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
+!!$            -(1+w_lam)*k*vq -(1+w_lam)*k*z
+!!$
+!!$        ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+!!$    end if
 
     if (associated(EV%OutputTransfer)) then
         EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
@@ -2345,14 +2362,6 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        !Modified by Clement Leloup
-        gpres=gpres+(grhog_t+grhor_t)/3
-        if (use_galileon) then
-           gpresgal_t=gpresgal(a)
-           gpres=gpres+gpresgal_t
-        else
-           gpres=gpres+grhov_t*w_lam
-        end if
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2496,15 +2505,50 @@
         end if
     end if ! no_nu_multpoles
 
+
     !Modified by Clement Leloup
-    gpres=gpres+(grhog_t+grhor_t)/3
     if (use_galileon) then
-       gpresgal_t=gpresgal(a)
-       gpres=gpres+gpresgal_t
-       cptr_to_conserv = conservation(grho, gpres, dgrho, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, etak, dphi, dphiprime, dphiprimeprime, a, k)
-       call C_F_POINTER(cptr_to_conserv, conserv, [2])
-       !print *, "conservation 1 : ", conserv(1)
+       ayprime(EV%w_ix) = dphiprime
+       dphiprimeprime = dphisecond(dgrho, dgq, z, etak, dphi, dphiprime, a, k, grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot)
+!!$       dphiprimeprime = dphisecond(grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, &
+!!$            grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgrho, dgq, z, &
+!!$            etak, dphi, dphiprime, a, k)
+       ayprime(EV%w_ix+1) = dphiprimeprime
+
+!!$       call zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, etak, dphi, dphiprime, dphiprimeprime, a, k)
+
+    else if (w_lam /= -1 .and. w_Perturb) then
+        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
+            -(1+w_lam)*k*vq -(1+w_lam)*k*z
+
+        ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
     end if
+    !Modified by Clement Leloup
+!!$    if (use_galileon) then
+!!$       ayprime(EV%w_ix) = dphiprime
+!!$       dphiprimeprime = dphisecond(dgrho, etak, dphi, dphiprime, a, k)
+!!$       dphiprimeprime = dphisecond(grho, gpres, dgrho, dgq, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, etak, dphi, dphiprime, a, k, z)
+!!$       ayprime(EV%w_ix+1) = dphiprimeprime
+!!$       
+!!$       call zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, etak, dphi, dphiprime, dphiprimeprime, a, k)
+!!$       
+!!$    else if (w_lam /= -1 .and. w_Perturb) then
+!!$       ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
+!!$            -(1+w_lam)*k*vq -(1+w_lam)*k*z
+!!$       
+!!$       ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+!!$    end if
+    
+!!$    !Modified by Clement Leloup
+!!$    gpres=gpres+(grhog_t+grhor_t)/3
+!!$    if (use_galileon) then
+!!$       gpresgal_t=gpresgal(a)
+!!$       gpres=gpres+gpresgal_t
+!!$       cptr_to_conserv = conservation(grho, gpres, dgrho, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, etak, dphi, dphiprime, dphiprimeprime, a, k)
+!!$       call C_F_POINTER(cptr_to_conserv, conserv, [2])
+!!$       !print *, "conservation 1 : ", conserv(1)
+!!$    end ifx
+
 
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return
@@ -2565,7 +2609,7 @@
         ayprime(ind)= k*(ay(ind-1) -a2*ay(ind2-1)) -(EV%lmaxnu_pert+1)*cothxor*ay(ind)
     end if
 
-    end subroutine derivs
+  end subroutine derivs
 
 
 
