@@ -12,9 +12,10 @@ module interface
        real(kind=C_DOUBLE) :: omegar
     end subroutine arrays
 
-    type(C_PTR) function handxofa(point) bind(C, name='handxofa_')
+    function handxofa(point) bind(C, name='handxofa_')
       import C_PTR, C_DOUBLE
       real(kind=C_DOUBLE) :: point
+      type(C_PTR) :: handxofa
     end function handxofa
 
     function grhogal(point) bind(C, name='grhogal_')
@@ -42,33 +43,21 @@ module interface
       real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, point, k, Pigal
     end function Pigal
 
-    function dphisecond(dgrho, dgq, z, eta, dphi, dphiprime, point, k, grho, gpres, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot) bind(C, name='dphisecond_')
+    function dphisecond(dgrho, dgq, eta, dphi, dphiprime, point, k, deltafprime) bind(C, name='dphisecond_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, dgq, z, eta, dphi, dphiprime, point, k, dphisecond, grho, gpres, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot
+      real(kind=C_DOUBLE) :: dgrho, dgq, eta, dphi, dphiprime, point, k, dphisecond, deltafprime
     end function dphisecond
-!!$
-!!$    function dphisecond(grho, gpres, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, &
-!!$         grhor, clxr, clxrdot, grhog, clxg, clxgdot, dgrho, dgq, z, &
-!!$         eta, dphi, dphiprime, point, k) bind(C, name='dphisecond_')
-!!$      import C_DOUBLE
-!!$      real(kind=C_DOUBLE) :: grho, gpres
-!!$      real(kind=C_DOUBLE) :: grhob, clxb, clxbdot
-!!$      real(kind=C_DOUBLE) :: grhoc, clxc, clxcdot
-!!$      real(kind=C_DOUBLE) :: grhor, clxr, clxrdot
-!!$      real(kind=C_DOUBLE) :: grhog, clxg, clxgdot
-!!$      real(kind=C_DOUBLE) :: dgrho, dgq, z, eta, dphi, dphiprime, point, k
-!!$    end function dphisecond
 
-    subroutine zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, eta, dphi, dphiprime, dphisecond, point, k) bind(C, name='zprime_')
+    function pigalprime(dgrho, dgq, dgpi, pidot, eta, dphi, dphiprime, point, k, grho, gpres) bind(C, name='pigalprime_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, eta, dphi, dphiprime, dphisecond, point, k
-    end subroutine zprime
+      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, pidot, eta, dphi, dphiprime, point, k, grho, gpres, pigalprime
+    end function pigalprime
 
-    type(C_PTR) function conservation(grho, gpres, dgrho, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, eta, dphi, dphiprime, dphisecond, point, k) bind(C, name='conservation_')
+    function crosschecks(dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, point, k, grho, gpres, deltafprime) bind(C, name='crosschecks_')
       import C_PTR, C_DOUBLE
-      real(kind=C_DOUBLE) :: grho, gpres, dgrho, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, eta, dphi, dphiprime, dphisecond, point, k
-    end function conservation
-
+      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, point, k, grho, gpres, deltafprime
+      type(C_PTR) :: crosschecks
+    end function crosschecks
   end interface
 
 end module interface

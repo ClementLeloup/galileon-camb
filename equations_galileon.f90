@@ -84,7 +84,6 @@
       real(dl) :: grhora2, rhonu, omegar
       integer nu_i
 
-
       !Set the input file to look into for parameters
       InputFile = ''
       if (GetParamCount() /= 0)  InputFile = trim(GetParam(1)) //C_NULL_CHAR
@@ -108,6 +107,7 @@
 !!$         call arrays(InputFile, OutputFile, omegar)
          call arrays(InputFile, omegar)
          !call arrays('params.ini'//C_NULL_CHAR, OutputFile, omegar)
+
       end if
 
     end  subroutine init_background
@@ -1276,9 +1276,13 @@
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
 
     !Modified by Clement Leloup
-    real(kind=C_DOUBLE) dgrhogal_t, dgqgal_t, dgpigal_t
+    real(kind=C_DOUBLE) dgrhogal_t, dgqgal_t, dgpigal_t, pigaldot
     real(kind=C_DOUBLE) grhogal_t, gpresgal_t
-    real(dl) dphi, dphiprime, dtauda
+    real(dl) dphi, dphiprime, dphiprimeprime, dtauda
+    real(dl) clxcdot, clxbdot, clxgdot, clxrdot, dotdeltaf
+    type(C_PTR) :: cptr_to_cc
+    real(kind=C_DOUBLE), pointer :: cc(:)
+
 
     real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
     real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
@@ -1481,8 +1485,17 @@
         end if
     end if
 
+
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
-    diff_rhopi = pidot_sum - (4*dgpi+dgpi_diff)*adotoa
+
+    !Modified by Clement Leloup
+    if (use_galileon) then
+       diff_rhopi = pidot_sum - (4*(dgpi-dgpigal_t)+dgpi_diff)*adotoa
+       pigaldot = pigalprime(dgrho, dgq, dgpi, diff_rhopi, etak, dphi, dphiprime, a, k, grho, gpres)
+       diff_rhopi = diff_rhopi + pigaldot
+    else
+       diff_rhopi = pidot_sum - (4*dgpi+dgpi_diff)*adotoa
+    end if
 
     !Maple's fortran output - see scal_eqs.map
     !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -1503,24 +1516,26 @@
         (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
         (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
 
+!!$    print *, "fortran : ", a, " ; ", pigaldot, " ; ", grhog_t*pigdot, " ; ", grhor_t*pirdot
+
     ! Doppler term
     !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
     !         +1.D0/k/EV%Kf(1)*vis(j)*etak
 
-    !Equivalent full result
-    !    t4 = 1.D0/adotoa
-    !    t92 = k**2
-    !   sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
-    !       (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
-    !    sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
-    !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
-    !        gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
-    !        EV%Kf(1)+(vbdot-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+3.D0/40.D0*qgdot-21.D0/ &
-    !        5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*vis(j))/k+(((-9.D0/160.D0*pigdot- &
-    !        27.D0/80.D0*ypolprime(2))*opac(j)-21.D0/10.D0*dgpi -27.D0/80.D0*dopac(j)*ypol(2) &
-    !        -9.D0/160.D0*dopac(j)*pig)*vis(j) - diff_rhopi*expmmu(j)+((-27.D0/80.D0*ypol(2)-9.D0/ &
-    !        160.D0*pig)*opac(j)+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvis(j)+9.D0/ &
-    !        8.D0*ddvis(j)*ypol(2)+3.D0/16.D0*ddvis(j)*pig)/t92
+!!$    !Equivalent full result
+!!$        t4 = 1.D0/adotoa
+!!$        t92 = k**2
+!!$       sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
+!!$           (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
+!!$        sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
+!!$             3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
+!!$            gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
+!!$            EV%Kf(1)+(vbdot-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+3.D0/40.D0*qgdot-21.D0/ &
+!!$            5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*vis(j))/k+(((-9.D0/160.D0*pigdot- &
+!!$            27.D0/80.D0*ypolprime(2))*opac(j)-21.D0/10.D0*dgpi -27.D0/80.D0*dopac(j)*ypol(2) &
+!!$            -9.D0/160.D0*dopac(j)*pig)*vis(j) - diff_rhopi*expmmu(j)+((-27.D0/80.D0*ypol(2)-9.D0/ &
+!!$            160.D0*pig)*opac(j)+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvis(j)+9.D0/ &
+!!$            8.D0*ddvis(j)*ypol(2)+3.D0/16.D0*ddvis(j)*pig)/t92
 
 
     if (x > 0._dl) then
@@ -1544,6 +1559,25 @@
             sources(3) = 0
         end if
     end if
+
+
+    !Modified by Clement Leloup
+    if (use_galileon) then
+       clxcdot = yprime(3)
+       clxbdot = yprime(4)
+       clxrdot = yprime(EV%r_ix)
+       clxgdot = yprime(EV%g_ix)
+       dotdeltaf = grhob_t*(clxbdot - 3*adotoa*clxb) + grhoc_t*(clxcdot - 3*adotoa*clxc) + grhor_t*(clxrdot - 4*adotoa*clxr) + grhog_t*(clxgdot - 4*adotoa*clxg) !derivative of fluids' dgrho
+       dphiprimeprime = yprime(EV%w_ix+1)
+       cptr_to_cc = crosschecks(dgrho, dgq, dgpi, etak, dphi, dphiprime, dphiprimeprime, a, k, grho, gpres, dotdeltaf)
+       call C_F_POINTER(cptr_to_cc, cc, [2])
+
+       if (cc(1) .ge. 1d-5 .or. cc(2) .ge. 1d-5) then
+          write (*,*) 'The conservation equations are not verified.'
+          stop
+       end if
+    end if
+    
 
     end subroutine output
 
@@ -2095,10 +2129,10 @@
     !Modified by Clement Leloup
     real(kind=C_DOUBLE) dphiprimeprime
     real(dl) dphi, dphiprime, dgqgal_t, dgrhogal_t, dgpigal_t
-    real(dl) grhogal_t, gpresgal_t
+    real(dl) grhogal_t, gpresgal_t, dotdeltaf, dotdeltaqf
     real(dl) dtauda
-    type(C_PTR) :: cptr_to_conserv
-    real(kind=C_DOUBLE), pointer :: conserv(:)
+    type(C_PTR) :: cptr_to_cc
+    real(kind=C_DOUBLE), pointer :: cc(:)
 
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
@@ -2297,24 +2331,6 @@
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
 
-!!$    !Modified by Clement Leloup
-!!$    if (use_galileon) then
-!!$       ayprime(EV%w_ix) = dphiprime
-!!$       dphiprimeprime = dphisecond(dgrho, dgq, z, etak, dphi, dphiprime, a, k, grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot)
-!!$       dphiprimeprime = dphisecond(grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, &
-!!$            grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgrho, dgq, z, &
-!!$            etak, dphi, dphiprime, a, k)
-!!$       ayprime(EV%w_ix+1) = dphiprimeprime
-!!$
-!!$       call zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, etak, dphi, dphiprime, dphiprimeprime, a, k)
-!!$
-!!$    else if (w_lam /= -1 .and. w_Perturb) then
-!!$        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-!!$            -(1+w_lam)*k*vq -(1+w_lam)*k*z
-!!$
-!!$        ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
-!!$    end if
-
     if (associated(EV%OutputTransfer)) then
         EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
         EV%OutputTransfer(Transfer_cdm) = clxc
@@ -2508,14 +2524,11 @@
 
     !Modified by Clement Leloup
     if (use_galileon) then
-       ayprime(EV%w_ix) = dphiprime
-       dphiprimeprime = dphisecond(dgrho, dgq, z, etak, dphi, dphiprime, a, k, grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot)
-!!$       dphiprimeprime = dphisecond(grho, gpres, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, &
-!!$            grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgrho, dgq, z, &
-!!$            etak, dphi, dphiprime, a, k)
-       ayprime(EV%w_ix+1) = dphiprimeprime
+       dotdeltaf = grhob_t*(clxbdot - 3*adotoa*clxb) + grhoc_t*(clxcdot - 3*adotoa*clxc) + grhor_t*(clxrdot - 4*adotoa*clxr) + grhog_t*(clxgdot - 4*adotoa*clxg) !derivative of fluids' dgrho
 
-!!$       call zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, etak, dphi, dphiprime, dphiprimeprime, a, k)
+       ayprime(EV%w_ix) = dphiprime
+       dphiprimeprime = dphisecond(dgrho, dgq, etak, dphi, dphiprime, a, k, dotdeltaf)
+       ayprime(EV%w_ix+1) = dphiprimeprime
 
     else if (w_lam /= -1 .and. w_Perturb) then
         ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
@@ -2523,32 +2536,7 @@
 
         ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
     end if
-    !Modified by Clement Leloup
-!!$    if (use_galileon) then
-!!$       ayprime(EV%w_ix) = dphiprime
-!!$       dphiprimeprime = dphisecond(dgrho, etak, dphi, dphiprime, a, k)
-!!$       dphiprimeprime = dphisecond(grho, gpres, dgrho, dgq, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, etak, dphi, dphiprime, a, k, z)
-!!$       ayprime(EV%w_ix+1) = dphiprimeprime
-!!$       
-!!$       call zprime(grho, dgrho, dgq, grhob, clxb, clxbdot, grhoc, clxc, clxcdot, grhor, clxr, clxrdot, grhog, clxg, clxgdot, etak, dphi, dphiprime, dphiprimeprime, a, k)
-!!$       
-!!$    else if (w_lam /= -1 .and. w_Perturb) then
-!!$       ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-!!$            -(1+w_lam)*k*vq -(1+w_lam)*k*z
-!!$       
-!!$       ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
-!!$    end if
     
-!!$    !Modified by Clement Leloup
-!!$    gpres=gpres+(grhog_t+grhor_t)/3
-!!$    if (use_galileon) then
-!!$       gpresgal_t=gpresgal(a)
-!!$       gpres=gpres+gpresgal_t
-!!$       cptr_to_conserv = conservation(grho, gpres, dgrho, grhob_t, clxb, clxbdot, grhoc_t, clxc, clxcdot, grhor_t, clxr, clxrdot, grhog_t, clxg, clxgdot, dgq, qr, qrdot, qg, qgdot, dgpi, etak, dphi, dphiprime, dphiprimeprime, a, k)
-!!$       call C_F_POINTER(cptr_to_conserv, conserv, [2])
-!!$       !print *, "conservation 1 : ", conserv(1)
-!!$    end ifx
-
 
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return

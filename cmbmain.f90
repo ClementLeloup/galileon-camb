@@ -115,8 +115,8 @@
     integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for k>2*l_smooth_sample
 
     !Modified by Clement Leloup
-    !real(dl) :: fixq = 0._dl !Debug output of one q
-    real(dl) :: fixq = 1.0_dl !Debug output of one q
+    real(dl) :: fixq = 0._dl !Debug output of one q
+    !real(dl) :: fixq = 0.001_dl !Debug output of one q
 
     real(dl) :: ALens = 1._dl
 
@@ -931,6 +931,9 @@
 
     !Modified by Clement Leloup
     real(dl) dgrho, dgrhogal,  dgq, dgqgal, dgpi, dgpigal, phi, deltagal
+    real(dl) grho, gpres, dotdeltaf, dotdeltaqf
+    type(C_PTR) :: cptr_to_cc
+    real(kind=C_DOUBLE), pointer :: cc(:)
 
     external dtauda
 
@@ -951,7 +954,7 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve/evolve_q1.txt',1)
+        call CreateTxtFile('evolve/evolve_q0001.txt',1)
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -967,6 +970,9 @@
             dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
             dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
             if (use_galileon) then
+               grho = (grhob/y(1)+grhoc/y(1)+grhornomass/(y(1)*y(1))+grhog/(y(1)*y(1))+grhogal(y(1)))
+               gpres=(grhog/(y(1)*y(1))+grhor/(y(1)*y(1)))/3+gpresgal(y(1))
+
                dgrhogal = Chigal(dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
                dgrho = dgrho + dgrhogal
                dgqgal = qgal(dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
@@ -975,8 +981,11 @@
                dgpi = dgpi + dgpigal
                deltagal = 0
                if (y(1) .ge. 9.99999d-7) then
-                  deltagal = dgrhogal/grhogal(y(1))
+                  !deltagal = dgrhogal/grhogal(y(1))
+                  !deltagal = (dgrho - grhornomass/(y(1)*y(1))*y(EV%r_ix) - grhog/(y(1)*y(1))*y(EV%g_ix))/(grhob/y(1)+grhoc/y(1)+grhogal(y(1)))
+                  deltagal = dgrho/grho
                end if
+
             end if
 
             phi = -(dgrho + 3*dgq*adotoa/(EV%q))/((EV%q2)*2) - dgpi/(EV%q2)/2
@@ -984,7 +993,7 @@
             !Modified by Clement Leloup
             !write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
             if (use_galileon) then
-               write (1,'(10E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
+               write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1), y(EV%w_ix+1), yprime(EV%w_ix+1)
             else
                write (1,'(10E15.5)') tau, 0, 0, 0, 0, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
             end if
