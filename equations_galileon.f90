@@ -34,7 +34,7 @@
     ! http://cosmocoffee.info/viewtopic.php?t=512
 
     !Modified by Clement Leloup
-    logical :: use_galileon = .false.
+    !logical :: use_galileon = .false.
 
     contains
 
@@ -46,7 +46,7 @@
     cs2_lam = Ini_Read_Double_File(Ini,'cs2_lam',1.d0)
     
     !Modified by Clement Leloup
-    use_galileon = Ini_Read_Logical_File(Ini,'use_galileon',.false.)
+    !use_galileon = Ini_Read_Logical_File(Ini,'use_galileon',.false.)
 
     end subroutine DarkEnergy_ReadParams
 
@@ -72,6 +72,7 @@
       !massive neutrinos are initialized and after GetOmegak
 
       !Modified by Clement Leloup
+      use constants
       use ModelParams
       use MassiveNu
       use LambdaGeneral
@@ -81,7 +82,7 @@
       implicit none
 
       CHARACTER(len=Ini_max_string_len) :: InputFile, outroot
-      real(dl) :: grhora2, rhonu, omegar
+      real(dl) :: grhora2, rhonu, omegar, omegam, hub
       integer nu_i
 
       !Set the input file to look into for parameters
@@ -89,25 +90,25 @@
       if (GetParamCount() /= 0)  InputFile = trim(GetParam(1)) //C_NULL_CHAR
       if (InputFile == '') stop 'No parameter input file'
       
-      if (use_galileon) then         
+      if (CP%use_galileon) then         
          grhora2 = grhog+grhornomass
          if (CP%Num_Nu_massive /= 0) then
             !Get massive neutrino density relative to massless
-            do nu_i = 1, CP%nu_mass_eigenstates
-               call Nu_rho(nu_masses(nu_i),rhonu)
-               grhora2=grhora2+rhonu*grhormass(nu_i)
-            end do
+!!$            do nu_i = 1, CP%nu_mass_eigenstates
+!!$               call Nu_rho(nu_masses(nu_i),rhonu)
+!!$               grhora2=grhora2+rhonu*grhormass(nu_i)
+!!$            end do
          end if
 
          !print *, grhog, grhornomass, grhor2, rhonu, grhormass(nu_i)
 
          omegar = grhora2/grhom
+         omegam = CP%omegab + CP%omegac
+         hub = CP%h0/c*1000
 
          !Set the background with parameters from input file
-!!$         call arrays(InputFile, OutputFile, omegar)
-         call arrays(InputFile, omegar)
+         call arrays(InputFile, omegar, omegam, hub, CP%c2, CP%c3, CP%c4, CP%c5, CP%cG)
          !call arrays('params.ini'//C_NULL_CHAR, OutputFile, omegar)
-
       end if
 
     end  subroutine init_background
@@ -137,7 +138,7 @@
     a2=a**2
 
     !Modified by Clement Leloup
-    if (use_galileon .and. a .ge. 9.99999d-7) then
+    if (CP%use_galileon .and. a .ge. 9.99999d-7) then
        a4=a2**2
        
        cptr_to_handx = handxofa(a)
@@ -595,7 +596,7 @@
 
     !Dark energy
     !Modified by Clement Leloup
-    if(use_galileon) then
+    if(CP%use_galileon) then
        EV%w_ix = neq+1
        neq = neq+2 !Adding the equation of evolution of galileon perturbation (counting two equations since it's a second order equation), cf (48) from arXiv:1208.0600
        maxeq = maxeq+2
@@ -661,7 +662,7 @@
     yout(1:basic_num_eqns) = y(1:basic_num_eqns)
     
     !Modified by Clement Leloup
-    if(use_galileon) then
+    if(CP%use_galileon) then
        yout(EVout%w_ix)=y(EV%w_ix)
        yout(EVout%w_ix+1)=y(EV%w_ix+1)
     else if (w_lam /= -1 .and. w_Perturb) then
@@ -1323,7 +1324,7 @@
     vbdot =yprime(5)
 
     !Modified by Clement Leloup
-    if (use_galileon) then
+    if (CP%use_galileon) then
        dphi = y(EV%w_ix)
        dphiprime = y(EV%w_ix+1)
     end if
@@ -1339,7 +1340,7 @@
     !Modified by Clement Leloup
     grho=grhob_t+grhoc_t+grhor_t+grhog_t
     gpres=(grhog_t+grhor_t)/3
-    if (use_galileon) then
+    if (CP%use_galileon) then
        grhogal_t=grhogal(a)
        gpresgal_t=gpresgal(a)
        grho=grho+grhogal_t
@@ -1364,7 +1365,7 @@
     end if
 
     !Modified by Clement Leloup
-    if (w_lam /= -1 .and. w_Perturb .and. .not. use_galileon) then
+    if (w_lam /= -1 .and. w_Perturb .and. .not. CP%use_galileon) then
        clxq=y(EV%w_ix)
        vq=y(EV%w_ix+1)
        dgrho=dgrho + clxq*grhov_t
@@ -1378,7 +1379,7 @@
     if (EV%no_nu_multpoles) then
 
        !Modified by Clement Leloup
-       if (use_galileon) then
+       if (CP%use_galileon) then
           dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
           z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
@@ -1402,7 +1403,7 @@
     if (EV%no_phot_multpoles) then
 
        !Modified by Clement Leloup
-       if (use_galileon) then
+       if (CP%use_galileon) then
           dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
           z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
@@ -1448,7 +1449,7 @@
     dgpi  = dgpi  + grhor_t*pir + grhog_t*pig
 
     !Modified by Clement Leloup
-    if (use_galileon) then
+    if (CP%use_galileon) then
        dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
        dgrho = dgrho + dgrhogal_t
        dgqgal_t = qgal(dgq, etak, dphi, dphiprime, a, k)
@@ -1489,7 +1490,7 @@
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
 
     !Modified by Clement Leloup
-    if (use_galileon) then
+    if (CP%use_galileon) then
        diff_rhopi = pidot_sum - (4*(dgpi-dgpigal_t)+dgpi_diff)*adotoa
        pigaldot = pigalprime(dgrho, dgq, dgpi, diff_rhopi, etak, dphi, dphiprime, a, k, grho, gpres)
        diff_rhopi = diff_rhopi + pigaldot
@@ -1562,7 +1563,7 @@
 
 
     !Modified by Clement Leloup
-    if (use_galileon) then
+    if (CP%use_galileon) then
        clxcdot = yprime(3)
        clxbdot = yprime(4)
        clxrdot = yprime(EV%r_ix)
@@ -2161,7 +2162,7 @@
 
     ! Galileon field
     !Modified by Clement Leloup
-    if(use_galileon) then
+    if(CP%use_galileon) then
        dphi = ay(EV%w_ix)
        dphiprime = ay(EV%w_ix+1)
     end if
@@ -2174,7 +2175,7 @@
     grhog_t=grhog/a2
     
     !Modified by Clement Leloup
-    if (use_galileon) then
+    if (CP%use_galileon) then
        grhogal_t=grhogal(a)
     else
        if (w_lam==-1._dl) then
@@ -2195,7 +2196,7 @@
 
     !Modified by Clement Leloup
     gpres=gpres+(grhog_t+grhor_t)/3
-    if (use_galileon) then
+    if (CP%use_galileon) then
        gpresgal_t=gpresgal(a)
        gpres=gpres+gpresgal_t
     else
@@ -2217,7 +2218,7 @@
 
     !Modified by Clement Leloup
     grho=grho_matter+grhor_t+grhog_t
-    if (use_galileon) then
+    if (CP%use_galileon) then
        grho=grho+grhogal_t
     else
        grho = grho+grhov_t
@@ -2237,7 +2238,7 @@
 
     dgrho = dgrho_matter
 
-    if (w_lam /= -1 .and. w_Perturb .and. .not. use_galileon) then
+    if (w_lam /= -1 .and. w_Perturb .and. .not. CP%use_galileon) then
        clxq=ay(EV%w_ix)
        vq=ay(EV%w_ix+1)
        dgrho=dgrho + clxq*grhov_t
@@ -2250,7 +2251,7 @@
        !Approximate total density variables with just matter terms
 
        !Modified by Clement Leloup
-       if (use_galileon) then
+       if (CP%use_galileon) then
           dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
           z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
@@ -2274,7 +2275,7 @@
         if (.not. EV%no_nu_multpoles) then
 
            !Modified by Clement Leloup
-           if (use_galileon) then
+           if (CP%use_galileon) then
               dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
               z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
               dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
@@ -2311,7 +2312,7 @@
     ayprime(1)=adotoa*a
 
     !Modified by Clement Leloup
-    if(use_galileon) then
+    if(CP%use_galileon) then
        dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
        dgrho = dgrho + dgrhogal_t
        dgqgal_t = qgal(dgq, etak, dphi, dphiprime, a, k)
@@ -2345,7 +2346,7 @@
         end if
         
         !Modified by Clement Leloup
-        if (use_galileon) then
+        if (CP%use_galileon) then
            dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, a, k)
            dgpi = dgpi + dgpigal_t
         end if
@@ -2394,7 +2395,7 @@
             dgs = grhog_t*pig+grhor_t*pir
 
             !Modified by Clement Leloup
-            if (use_galileon) then
+            if (CP%use_galileon) then
                dgpigal_t = Pigal(dgrho, dgq, dgs, etak, dphi, a, k)
                dgs = dgs + dgpigal_t
             end if
@@ -2523,7 +2524,7 @@
 
 
     !Modified by Clement Leloup
-    if (use_galileon) then
+    if (CP%use_galileon) then
        dotdeltaf = grhob_t*(clxbdot - 3*adotoa*clxb) + grhoc_t*(clxcdot - 3*adotoa*clxc) + grhor_t*(clxrdot - 4*adotoa*clxr) + grhog_t*(clxgdot - 4*adotoa*clxg) !derivative of fluids' dgrho
 
        ayprime(EV%w_ix) = dphiprime
@@ -2666,7 +2667,7 @@
     !Modified by Clement Leloup
     grho=grhob_t+grhoc_t+grhor_t+grhog_t
     gpres=(grhog_t+grhor_t)/3._dl
-    if (use_galileon) then
+    if (CP%use_galileon) then
        grhogal_t=grhogal(a)
        gpresgal_t=gpresgal(a)
        grho=grho+grhogal_t
@@ -2841,7 +2842,7 @@
 
     !Modified by Clement Leloup
     grho=grhob_t+grhoc_t+grhor_t+grhog_t
-    if (use_galileon) then
+    if (CP%use_galileon) then
        grhogal_t=grhogal(a)
        grho=grho+grhogal_t
     else if (w_lam==-1._dl) then

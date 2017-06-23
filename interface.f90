@@ -5,11 +5,11 @@ module interface
 
   interface
      !subroutine arrays(infile, outfile, omegar) bind(C, name='arrays_')
-     subroutine arrays(infile, omegar) bind(C, name='arrays_')
+     subroutine arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin) bind(C, name='arrays_')
        import C_CHAR, C_DOUBLE ! Make iso c binding visible here
 !!$       character(kind=C_CHAR), dimension(*) :: infile, outfile
        character(kind=C_CHAR), dimension(*) :: infile
-       real(kind=C_DOUBLE) :: omegar
+       real(kind=C_DOUBLE) :: omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin
     end subroutine arrays
 
     function handxofa(point) bind(C, name='handxofa_')

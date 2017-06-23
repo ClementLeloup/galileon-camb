@@ -39,8 +39,8 @@
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
+    !Modified by Clement Leloup
     logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
-
     logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
 
     real(dl) :: DebugParam = 0._dl !not used but read in, useful for parameter-dependent tests
@@ -155,6 +155,11 @@
         real(dl) omegak
         real(dl) curv,r, Ksign !CP%r = 1/sqrt(|CP%curv|), CP%Ksign = 1,0 or -1
         real(dl) tau0,chi0 !time today and rofChi(CP%tau0/CP%r)
+
+        !Modified by Clement Leloup
+        !Parameters for galileon cosmology
+        logical   :: use_galileon
+        real(dl)  :: c2, c3, c4, c5, cG
 
     end type CAMBparams
 
@@ -386,6 +391,7 @@
     if (.not.call_again) then
         call init_massive_nu(CP%omegan /=0)
         call init_background
+
         if (global_error_flag==0) then
             CP%tau0=TimeOfz(0._dl)
             ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100
@@ -663,7 +669,7 @@
     rs = rombint(dsound_da,1d-8,astar,atol)
     DA = AngularDiameterDistance(zstar)/astar
     CosmomcTheta = rs/DA
-    !print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
+    print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
     end function CosmomcTheta
 

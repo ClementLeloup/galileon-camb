@@ -116,6 +116,17 @@
         P%omegan = Ini_Read_Double('omega_neutrino')
     end if
 
+    !Modified by Clement Leloup
+    !Read galileon parameters from input file
+    P%use_galileon = Ini_Read_Logical('use_galileon')
+    if(P%use_galileon) then
+      P%c2 = Ini_Read_Double('c2')
+      P%c3 = Ini_Read_Double('c3')
+      P%c4 = Ini_Read_Double('c4')
+      P%c5 = Ini_Read_Double('c5')
+      P%cG = Ini_Read_Double('cG')
+    end if
+
     P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
     P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
     P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')

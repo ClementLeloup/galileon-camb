@@ -80,7 +80,7 @@ double c3 = 0;
 double c4 = 0;
 double c5 = 0;
 double cG = 0;
-double c0 = 0;
+double c0 = 0; // not implemented with c0 yet, but in case it is one day ...
 double orad = 0;
 double h0 = 0;
 
@@ -294,21 +294,6 @@ int calcHubbleGalileon(){
       zcurrtarg = intvar[i];
       while(z > zcurrtarg){
 	st = gsl_odeiv_evolve_apply(e, c, s, &sys, &z, zcurrtarg, &h, y);
-	double OmegaP = (0.5*c2*pow(y[0], 2)*pow(intvar[i]*y[1], 2) - 6*c3*pow(y[0], 4)*pow(intvar[i]*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(intvar[i]*y[1], 4) - 21*c5*pow(y[0], 8)*pow(intvar[i]*y[1], 5) - 9*cG*pow(y[0], 4)*pow(intvar[i]*y[1], 2))/(3.0*pow(y[0], 2));
-	double OmegaM = 1 - OmegaP - orad/(pow(intvar[i],4)*pow(y[0], 2));
-	double OmTest = om/(pow(intvar[i],3)*pow(y[0], 2));
-	// printf("%f\n", intvar[i]);
-	if(OmegaP<0) st = 5;
-	if ( fabs(OmegaM - OmTest)>1e-4  ) {
-	  printf("Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
-	  st = 4;
-	}
-	if(st != 0){
-	  gsl_odeiv_evolve_free(e);
-	  gsl_odeiv_control_free(c);
-	  gsl_odeiv_step_free(s);
-	  return st;
-	}
       }
       if(isnan(fabs(y[0])) || isnan(fabs(y[1]))  || isnan(fabs(y[2]))){
 	gsl_odeiv_evolve_free(e);
@@ -316,6 +301,15 @@ int calcHubbleGalileon(){
 	gsl_odeiv_step_free(s);
 	printf("\nFailure with om = %f, c2 = %f, c3 = %f, c4 = %f, c5 = %f, cG = %f and c0 = %f at z = %f, h = %f, x = %f and y = %f\n", om, c2, c3, c4, c5, cG, c0, zcurrtarg, y[0], y[1], y[2]);
 	return 8;
+      }
+      double OmegaP = (0.5*c2*pow(y[0], 2)*pow(intvar[i]*y[1], 2) - 6*c3*pow(y[0], 4)*pow(intvar[i]*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(intvar[i]*y[1], 4) - 21*c5*pow(y[0], 8)*pow(intvar[i]*y[1], 5) - 9*cG*pow(y[0], 4)*pow(intvar[i]*y[1], 2))/(3.0*pow(y[0], 2));
+      double OmegaM = 1 - OmegaP - orad/(pow(intvar[i],4)*pow(y[0], 2));
+      double OmTest = om/(pow(intvar[i],3)*pow(y[0], 2));
+      // printf("%i : %f\n", i, intvar[i]);
+      if(OmegaP<0) return 5;
+      if ( fabs((OmegaM - OmTest)/OmTest)>1e-5 ) {
+	printf("Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+	return 4;
       }
       hubble[i] = y[0];
       x[i] = y[1];
@@ -334,14 +328,6 @@ int calcHubbleGalileon(){
       zcurrtarg = intvar[i];
      while(z < zcurrtarg){
 	st = gsl_odeiv_evolve_apply(e, c, s, &sys, &z, zcurrtarg, &h, y);
-	double OmegaP = (0.5*c2*pow(y[0], 2)*pow(-(1+intvar[i])*y[1], 2) - 6*c3*pow(y[0], 4)*pow(-(1+intvar[i])*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(-(1+intvar[i])*y[1], 4) - 21*c5*pow(y[0], 8)*pow(-(1+intvar[i])*y[1], 5) - 9*cG*pow(y[0], 4)*pow(-(1+intvar[i])*y[1], 2))/(3.0*pow(y[0], 2)) ;
-	double OmegaM = 1 - OmegaP - orad*pow(1+intvar[i], 4)/pow(y[0], 2);
-	double OmTest = om*pow(1+intvar[i], 3)/pow(y[0], 2);
-	if(OmegaP<0) st = 5;
-	if ( fabs(OmegaM - OmTest)>1e-4  ) {
-	  printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
-	  st = 4;
-	}
 	if(st != 0){
 	  gsl_odeiv_evolve_free(e);
 	  gsl_odeiv_control_free(c);
@@ -356,8 +342,17 @@ int calcHubbleGalileon(){
 	printf("\nFailure with om = %f, c2 = %f, c3 = %f, c4 = %f, c5 = %f, cG = %f and c0 = %f at z = %f, h = %f, x = %f and y = %f\n", om, c2, c3, c4, c5, cG, c0, zcurrtarg, y[0], y[1], y[2]);
 	return 8;
       }
+      double OmegaP = (0.5*c2*pow(y[0], 2)*pow(-(1+intvar[i])*y[1], 2) - 6*c3*pow(y[0], 4)*pow(-(1+intvar[i])*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(-(1+intvar[i])*y[1], 4) - 21*c5*pow(y[0], 8)*pow(-(1+intvar[i])*y[1], 5) - 9*cG*pow(y[0], 4)*pow(-(1+intvar[i])*y[1], 2))/(3.0*pow(y[0], 2)) ;
+      double OmegaM = 1 - OmegaP - orad*pow(1+intvar[i], 4)/pow(y[0], 2);
+      double OmTest = om*pow(1+intvar[i], 3)/pow(y[0], 2);
+      if(OmegaP<0) st = 5;
+      if ( fabs((OmegaM - OmTest)/OmTest)>1e-5 ) {
+	printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+	st = 4;
+      }
       hubble[i] = y[0];
-      x[i] = -pow(1+intvar[i], 2)*y[1];
+      // x[i] = -pow(1+intvar[i], 2)*y[1]; 
+      x[i] = -(1+intvar[i])*y[1]; // Need to cross-check here
     }    
   }
 
@@ -484,16 +479,6 @@ int ageOfUniverse(double &age, double cond[4]){
     acurrtarg = intvar[i];
     while(a < acurrtarg){
       st = gsl_odeiv_evolve_apply(e, c, s, &sys, &a, acurrtarg, &h, y);
-      double OmegaP = (0.5*c2*pow(y[0], 2)*pow(intvar[i]*y[1], 2) - 6*c3*pow(y[0], 4)*pow(intvar[i]*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(intvar[i]*y[1], 4) - 21*c5*pow(y[0], 8)*pow(intvar[i]*y[1], 5) - 9*cG*pow(y[0], 4)*pow(intvar[i]*y[1], 2))/(3.0*pow(y[0], 2));
-      double OmegaM = 1 - OmegaP - orad/(pow(a,4)*pow(y[0], 2));
-      double OmTest = om/(pow(a,3)*pow(y[0], 2));
-      // printf("OmegaM : %.16f \t OmTest : %.16f \t |OmegaM - OmTest|/OmTest : %.16f\n", OmegaM, OmTest, fabs(OmegaM - OmTest)/OmTest);
-      // printf("OmegaM : %.16f \t OmTest : %.16f \t |OmegaM - OmTest| : %.16f\n", OmegaM, OmTest, fabs(OmegaM - OmTest));
-      if(OmegaP<0) st = 5;
-      if ( fabs(OmegaM - OmTest)>1e-4 ) {
-	printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
-	st = 4;
-      }
       if(st != 0){
 	gsl_odeiv_evolve_free (e);
 	gsl_odeiv_control_free (c);
@@ -506,6 +491,14 @@ int ageOfUniverse(double &age, double cond[4]){
       gsl_odeiv_control_free (c);
       gsl_odeiv_step_free (s);
       return 8;
+    }
+    double OmegaP = (0.5*c2*pow(y[0], 2)*pow(intvar[i]*y[1], 2) - 6*c3*pow(y[0], 4)*pow(intvar[i]*y[1], 3) + 22.5*c4*pow(y[0], 6)*pow(intvar[i]*y[1], 4) - 21*c5*pow(y[0], 8)*pow(intvar[i]*y[1], 5) - 9*cG*pow(y[0], 4)*pow(intvar[i]*y[1], 2))/(3.0*pow(y[0], 2));
+    double OmegaM = 1 - OmegaP - orad/(pow(a,4)*pow(y[0], 2));
+    double OmTest = om/(pow(a,3)*pow(y[0], 2));
+    if(OmegaP<0) st = 5;
+    if ( fabs((OmegaM - OmTest)/OmTest)>1e-5 ) {
+      printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs(OmegaM - OmTest));
+      st = 4;
     }
     age += 0.5*(1.0/(intvar[i]*y[0])+prec_age)*(intvar[i]-intvar[i-1]); // trapezoidal method
     prec_age = 1/(intvar[i]*y[0]);
@@ -682,7 +675,8 @@ void SetAcoord(double amin){
 
 // Function that calculates dtau/da = 1/(a^2*H) (tau being confromal time)
 // The function is the one linked to CAMB in order to calculate the background contribution
-extern "C" void arrays_(char* infile, double* omegar){
+// extern "C" void arrays_(char* infile, double* omegar){
+extern "C" void arrays_(char* infile, double* omegar, double* omegam, double* H0in, double* c2in, double* c3in, double* c4in, double* c5in, double* cGin){
 
   fflush(stdout);
 
@@ -693,16 +687,26 @@ extern "C" void arrays_(char* infile, double* omegar){
 
   char** params = readParamsFile(infile);
 
-  c2 = (*params != "") ? atof(*params) : 0;
-  c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
-  c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
-  c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
-  cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
+  // c2 = (*params != "") ? atof(*params) : 0;
+  // c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
+  // c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
+  // c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
+  // cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
+
+  c2 = (*c2in);
+  c3 = (*c3in);
+  c4 = (*c4in);
+  cG = (*cGin);
+
   double ratio_rho = (*(params+6) != "") ? atof(*(params+6)) : 0;
   double age = (*(params+7) != "") ? atof(*(params+7)) : 0;
-  om = (*(params+8) != "" && *(params+9) != "" && *(params+12) != "") ? (atof(*(params+8))+atof(*(params+9)))/pow(atof(*(params+12)), 2)*10000 : 0;
+  // om = (*(params+8) != "" && *(params+9) != "" && *(params+12) != "") ? (atof(*(params+8))+atof(*(params+9)))/pow(atof(*(params+12)), 2)*10000 : 0;
+  // h0 = (*(params+12) != "") ? atof(*(params+12))*1000/lightspeed : 0;
+
+  om = (*omegam);
   orad = (*omegar);
-  h0 = (*(params+12) != "") ? atof(*(params+12))*1000/lightspeed : 0;
+  h0 = (*H0in);
+
   c5 = (*(params+3) != "") ? atof(*(params+3)) : 0;
   char* solvingMethod = *(params+10);
   if(solvingMethod != "") solvingMethod[strlen(solvingMethod)-1] = '\0';
@@ -724,7 +728,7 @@ extern "C" void arrays_(char* infile, double* omegar){
     outfile = strcat(outfile, "_");
   }
   outfile = strcat(outfile, "background.dat");
-  
+
   printf("Input file : %s\nOutput file : %s\n", infile, outfile);
   printf("OmegaM0 = %f\nOmegaR0 = %.18f\nc0 = %f\nc2 = %f\nc3 = %f\nc4 = %f\nc5 = %f\ncG = %f\nh0 = %f Mpc-1\n", om, orad, c0, c2, c3, c4, c5, cG, h0);
 
@@ -779,8 +783,7 @@ extern "C" void arrays_(char* infile, double* omegar){
     // intvar.push_back(apremin);
 
     // Fill the vector of a with a geometric sequence
-    // q = 1.+5./10000;
-    double nb = 1000000; // number of a points
+    double nb = 30000; // number of a points using q0
     q = pow(amin/amax, 1./nb);
     for(int i = 0; i<=nb; i++){
       intvar.push_back(amax*pow(q, i));
@@ -791,7 +794,7 @@ extern "C" void arrays_(char* infile, double* omegar){
     // SetAcoord(amin);
     // sort(intvar.begin(), intvar.end(), std::greater<double>());
 
-    // printf("Number of points : %i\n", intvar.size());
+    printf("Number of points : %i\n", intvar.size());
 
     hubble.resize(intvar.size(), 999999);
     x.resize(intvar.size(), 999999);
@@ -869,25 +872,28 @@ extern "C" void arrays_(char* infile, double* omegar){
     fprintf(f, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", intvar[i+1], hubble[i], x[i], hubble_LCDM, ratio, weff);
   }
 
-
+  double hubble_interp[hubble.size()];
+  double x_interp[x.size()];
+  double intvar_interp[hubble.size()];
+  
   if(coord == BARREIRA){
-
-    double hubble_interp[hubble.size()];
     std::copy(hubble.begin(), hubble.end(), hubble_interp);
-    double x_interp[x.size()];
     std::copy(x.begin(), x.end(), x_interp);
-    double intvar_interp[intvar.size()-1];
     std::copy(intvar.begin()+1, intvar.end(), intvar_interp);
-
-    spline_h = gsl_spline_alloc(gsl_interp_cspline, hubble.size());
-    spline_x = gsl_spline_alloc(gsl_interp_cspline, x.size());  
-    gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
-    gsl_spline_init(spline_x, intvar_interp, x_interp, x.size());
+  } else if(coord == JNEVEUa){
+    std::copy(hubble.rbegin(), hubble.rend(), hubble_interp);
+    std::copy(x.rbegin(), x.rend(), x_interp);
+    std::copy(intvar.rbegin(), intvar.rend(), intvar_interp);
   }
-
+  
+  spline_h = gsl_spline_alloc(gsl_interp_cspline, hubble.size());
+  spline_x = gsl_spline_alloc(gsl_interp_cspline, x.size());  
+  gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
+  gsl_spline_init(spline_x, intvar_interp, x_interp, x.size());
+  
 }
 
-
+// Interpolate the values of x and h between the stored array points
 extern "C" double* handxofa_(double* point){
   if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
     printf("One of the global arrays is empty\n");
@@ -918,9 +924,19 @@ extern "C" double* handxofa_(double* point){
   } else if(coord == JNEVEUa){
     alpha = (log(*point) - log(intvar[0]))/log(q); // Solving amax*q^alpha = a
     i = floor(alpha)+1; // i is integer part of alpha, so that a[i] <= a < a[i+1]
-    hx[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
-    hx[1] = (x[i+1] - x[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + x[i];
+    // hx[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
+    // hx[1] = (x[i+1] - x[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + x[i];
+    hx[0] = gsl_spline_eval(spline_h, *point, acc);
+    hx[1] = gsl_spline_eval(spline_x, *point, acc);
   }
+
+  // double OmegaP = (0.5*c2*pow(hx[0], 2)*pow((*point)*hx[1], 2) - 6*c3*pow(hx[0], 4)*pow((*point)*hx[1], 3) + 22.5*c4*pow(hx[0], 6)*pow((*point)*hx[1], 4) - 21*c5*pow(hx[0], 8)*pow((*point)*hx[1], 5) - 9*cG*pow(hx[0], 4)*pow((*point)*hx[1], 2))/(3.0*pow(hx[0], 2));
+  // double OmegaM = 1 - OmegaP - orad/(pow((*point),4)*pow(hx[0], 2));
+  // double OmTest = om/(pow((*point),3)*pow(hx[0], 2));
+  // if ( fabs(OmegaM - OmTest)>1e-4  ) {
+  //   printf("Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, *point, pow(hx[0], 2), fabs(OmegaM - OmTest));
+  // }
+
 
   // // Resolution of coupled differential equations from a[i] to *a
   // double params[1];
@@ -1004,7 +1020,7 @@ extern "C" double* handxofa_(double* point){
   // gsl_odeiv_control_free (c);
   // gsl_odeiv_step_free (s);
 
-  if(i>=999997){
+  if(*point < 3e-6){
     double hubble_LCDM = sqrt(om/pow((*point), 3)+orad/pow((*point), 4)+(1-om-orad));
     if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time ( i = %i, a = %f, h_LCDM = %f and h_gal = %f)", i, (*point), hubble_LCDM, hx[0]);
   }
@@ -1116,7 +1132,7 @@ extern "C" double Chigal_(double* dgrho, double* eta, double* dphi, double* dphi
 
   double ChiG = 0;
 
-  if(-1e-5 < alpha_Z - 2 && alpha_Z - 2 < 1e-5) printf("WARNING : 1/beta_chi is zero");
+  // if(-1e-5 < alpha_Z - 2 && alpha_Z - 2 < 1e-5) printf("WARNING : 1/beta_chi is big : %.12f\n", beta);
   if (*point >= 9.99999e-7) ChiG = beta*(ChitildeG + 0.5*alpha_Z*(*dgrho) + (alpha_Z - 2*alpha_eta)*(*k)*(*eta));
 
   // FILE* g = fopen("chigal/chigal_q0001.dat", "a");
@@ -1159,7 +1175,7 @@ extern "C" double qgal_(double* dgq, double* eta, double* dphi, double* dphiprim
 
   double qG = 0;
 
-  if(-1e-5 < 1.5*alpha - 1 && 1.5*alpha - 1 < 1e-5) printf("WARNING : 1/beta_q is zero");
+  // if(-1e-5 < 1.5*alpha - 1 && 1.5*alpha - 1 < 1e-5) printf("WARNING : 1/beta_q is zero");
   if(*point >= 9.99999e-7) qG = beta*(qtildeG + 1.5*alpha*(*dgq));
 
   // FILE* g = fopen("qgal/qgal_q0001.dat", "a");
@@ -1225,7 +1241,7 @@ extern "C" double Pigal_(double* dgrho, double* dgq, double* dgpi, double* eta, 
 
   double PiG = 0;
 
-  if(-1e-5 < (alpha_phi - 2*alpha_sigprime+2) && (alpha_phi - 2*alpha_sigprime+2) < 1e-5) printf("WARNING : 1/beta_pi is zero");
+  // if(-1e-5 < (alpha_phi - 2*alpha_sigprime+2) && (alpha_phi - 2*alpha_sigprime+2) < 1e-5) printf("WARNING : 1/beta_pi is zero");
   if(*point >= 9.99999e-7) PiG = beta_pi*(PitildeG + (alpha_sigprime - 0.5*alpha_phi)*(*dgpi) + 0.5*(2*alpha_sigprime + alpha_sig - alpha_phi)*((*dgrho) + 3*h0*h/(*k)*(*dgq)) + (alpha_sig + alpha_sigprime)*(*k)*(*eta));
 
   // FILE* g = fopen("pigal/pigal_q0001.dat", "a");
@@ -1535,7 +1551,7 @@ int test(){
 
   orad = 8.2987687251764e-5;
 
-  arrays_("params_galjerem.ini", &orad);
+  // arrays_("params_galjerem.ini", &orad);
   // FILE* f = fopen("full_integration.txt", "w");
 
   // double a = 1e-4;
