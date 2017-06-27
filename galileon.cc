@@ -687,28 +687,28 @@ extern "C" void arrays_(char* infile, double* omegar, double* omegam, double* H0
 
   char** params = readParamsFile(infile);
 
-  // c2 = (*params != "") ? atof(*params) : 0;
-  // c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
-  // c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
-  // c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
-  // cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
-
-  c2 = (*c2in);
-  c3 = (*c3in);
-  c4 = (*c4in);
-  cG = (*cGin);
-
+  c2 = (*params != "") ? atof(*params) : 0;
+  c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
+  c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
+  c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
+  cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
   double ratio_rho = (*(params+6) != "") ? atof(*(params+6)) : 0;
   double age = (*(params+7) != "") ? atof(*(params+7)) : 0;
-  // om = (*(params+8) != "" && *(params+9) != "" && *(params+12) != "") ? (atof(*(params+8))+atof(*(params+9)))/pow(atof(*(params+12)), 2)*10000 : 0;
-  // h0 = (*(params+12) != "") ? atof(*(params+12))*1000/lightspeed : 0;
-
-  om = (*omegam);
-  orad = (*omegar);
-  h0 = (*H0in);
-
+  om = (*(params+8) != "" && *(params+9) != "" && *(params+12) != "") ? (atof(*(params+8))+atof(*(params+9)))/pow(atof(*(params+12)), 2)*10000 : 0;
+  h0 = (*(params+12) != "") ? atof(*(params+12))*1000/lightspeed : 0;
   c5 = (*(params+3) != "") ? atof(*(params+3)) : 0;
   char* solvingMethod = *(params+10);
+  orad = (*omegar);
+
+  // c2 = (*c2in);
+  // c3 = (*c3in);
+  // c4 = (*c4in);
+  // cG = (*cGin);
+
+  // om = (*omegam);
+  // orad = (*omegar);
+  // h0 = (*H0in);
+
   if(solvingMethod != "") solvingMethod[strlen(solvingMethod)-1] = '\0';
   if(strcmp(solvingMethod, "JNEVEUz") != 0 && strcmp(solvingMethod, "JNEVEUa") != 0 && strcmp(solvingMethod, "BARREIRA") != 0){
     fprintf(stderr, "WARNING : invalid integration method, will use the default one\n");
@@ -1543,7 +1543,23 @@ extern "C" double*  crosschecks_(double* dgrho, double* dgq, double* dgpi, doubl
 
 }
 
+extern "C" void freegal_(){
 
+  fflush(stdout);
+
+  gsl_spline_free(spline_h);
+  gsl_spline_free(spline_x);
+  gsl_interp_accel_free(acc);
+
+  printf("before -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), x.size());
+
+  intvar = std::vector<double>();
+  hubble = std::vector<double>();
+  x = std::vector<double>();
+
+  printf("after -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), x.size());
+
+}
 
 int test(){
 

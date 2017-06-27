@@ -4,7 +4,7 @@ module interface
   !implicit none
 
   interface
-     !subroutine arrays(infile, outfile, omegar) bind(C, name='arrays_')
+!!$     subroutine arrays(infile, outfile, omegar) bind(C, name='arrays_')
      subroutine arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin) bind(C, name='arrays_')
        import C_CHAR, C_DOUBLE ! Make iso c binding visible here
 !!$       character(kind=C_CHAR), dimension(*) :: infile, outfile
@@ -58,6 +58,9 @@ module interface
       real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, point, k, grho, gpres, deltafprime
       type(C_PTR) :: crosschecks
     end function crosschecks
-  end interface
 
+    subroutine freegal() bind(C, name='freegal_')
+      !subroutine to free non-necessary memory after perturbations calculation
+    end subroutine freegal
+  end interface
 end module interface
