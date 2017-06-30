@@ -98,7 +98,7 @@ $(OUTPUT_DIR)/%.o: %.F90
 
 ##Modified by Clement Leloup
 $(OUTPUT_DIR)/%.o: %.cc
-	icc -openmp -ipo -O3 -qopt-report0 -qopt-report-phase=vec -c -lgsl -lgslcblas -IRelease/ $*.cc -o $(OUTPUT_DIR)/$*.o
+	icc -openmp -O3 -qopt-report0 -qopt-report-phase=vec -c -lgsl -lgslcblas -IRelease/ $*.cc -o $(OUTPUT_DIR)/$*.o
 
 
 
