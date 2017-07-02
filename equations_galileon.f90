@@ -1574,7 +1574,7 @@
        call C_F_POINTER(cptr_to_cc, cc, [2])
 
        if (cc(1) .ge. 1d-5 .or. cc(2) .ge. 1d-5) then
-          write (*,*) 'The conservation equations are not verified.'
+          write (*,*) 'The conservation equations are not verified at a = ', a, ', and k = ', k, '.'
           stop
        end if
     end if
