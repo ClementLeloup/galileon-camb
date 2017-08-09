@@ -210,9 +210,15 @@ subroutine CorrFuncFullSkyImpl(lmax)
        CTE(l) =  Cl_scalar(l,in,C_Cross)*fac
     end do
     if (Cphil3(10) > 1e-7) then
+     
+     !Modified by Clement Leloup
+     print *, 'This is Cphil3(10) number one : ', Cphil3(10)
+
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
+
      stop
+
     end if
     if (lmax > CP%Max_l) then
      l=CP%Max_l
@@ -229,7 +235,9 @@ subroutine CorrFuncFullSkyImpl(lmax)
        CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc 
       if (Cphil3(CP%Max_l+1) > 1e-7) then
        write (*,*) 'You need to normalize the high-L template so it is dimensionless'
+
        stop
+
       end if
      end do
     end if
@@ -576,9 +584,15 @@ subroutine CorrFuncFlatSky
     end do
 
     if (Cphil3(10) > 1e-7) then
+     
+     !Modified by Clement Leloup
+     print *, 'This is Cphil3(10) number two : ', Cphil3(10)
+
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
+
      stop
+
     end if
 
   lens_contrib=0
@@ -746,9 +760,15 @@ subroutine BadHarmonic
 
   RR = RR/2/fourpi
   if (RR(1) > 1e-5) then
+
+     !Modified by Clement Leloup
+     print *, 'This is RR(1) : ', RR(1)
+
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-   stop
+
+     stop
+
   end if
   if (maxl > lmax_donelnfa) then 
    !Get ln factorials

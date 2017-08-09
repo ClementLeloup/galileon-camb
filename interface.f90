@@ -5,12 +5,13 @@ module interface
 
   interface
 !!$     subroutine arrays(infile, outfile, omegar) bind(C, name='arrays_')
-     subroutine arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin) bind(C, name='arrays_')
+     function arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin) bind(C, name='arrays_')
        import C_CHAR, C_DOUBLE ! Make iso c binding visible here
 !!$       character(kind=C_CHAR), dimension(*) :: infile, outfile
        character(kind=C_CHAR), dimension(*) :: infile
        real(kind=C_DOUBLE) :: omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin
-    end subroutine arrays
+       integer :: arrays
+    end function arrays
 
     function handxofa(point) bind(C, name='handxofa_')
       import C_PTR, C_DOUBLE
@@ -23,39 +24,39 @@ module interface
       real(kind=C_DOUBLE) :: point, grhogal
     end function grhogal
 
-    function gpresgal(point) bind(C, name='gpresgal_')
+    function gpresgal() bind(C, name='gpresgal_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: point, gpresgal
+      real(kind=C_DOUBLE) :: gpresgal
       end function gpresgal
 
-    function Chigal(dgrho, eta, dphi, dphiprime, point, k) bind(C, name='Chigal_')
+    function Chigal(dgrho, eta, dphi, dphiprime, k) bind(C, name='Chigal_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, eta, dphi, dphiprime, point, k, Chigal
+      real(kind=C_DOUBLE) :: dgrho, eta, dphi, dphiprime, k, Chigal
     end function Chigal
 
-    function qgal(dgq, eta, dphi, dphiprime, point, k) bind(C, name='qgal_')
+    function qgal(dgq, eta, dphi, dphiprime, k) bind(C, name='qgal_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgq, eta, dphi, dphiprime, point, k, qgal
+      real(kind=C_DOUBLE) :: dgq, eta, dphi, dphiprime, k, qgal
     end function qgal
 
-    function Pigal(dgrho, dgq, dgpi, eta, dphi, point, k) bind(C, name='Pigal_')
+    function Pigal(dgrho, dgq, dgpi, eta, dphi, k) bind(C, name='Pigal_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, point, k, Pigal
+      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, k, Pigal
     end function Pigal
 
-    function dphisecond(dgrho, dgq, eta, dphi, dphiprime, point, k, deltafprime) bind(C, name='dphisecond_')
+    function dphisecond(dgrho, dgq, eta, dphi, dphiprime, k, deltafprime) bind(C, name='dphisecond_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, dgq, eta, dphi, dphiprime, point, k, dphisecond, deltafprime
+      real(kind=C_DOUBLE) :: dgrho, dgq, eta, dphi, dphiprime, k, dphisecond, deltafprime
     end function dphisecond
 
-    function pigalprime(dgrho, dgq, dgpi, pidot, eta, dphi, dphiprime, point, k, grho, gpres) bind(C, name='pigalprime_')
+    function pigalprime(dgrho, dgq, dgpi, pidot, eta, dphi, dphiprime, k, grho, gpres) bind(C, name='pigalprime_')
       import C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, pidot, eta, dphi, dphiprime, point, k, grho, gpres, pigalprime
+      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, pidot, eta, dphi, dphiprime, k, grho, gpres, pigalprime
     end function pigalprime
 
-    function crosschecks(dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, point, k, grho, gpres, deltafprime) bind(C, name='crosschecks_')
+    function crosschecks(dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, k, grho, gpres, deltafprime) bind(C, name='crosschecks_')
       import C_PTR, C_DOUBLE
-      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, point, k, grho, gpres, deltafprime
+      real(kind=C_DOUBLE) :: dgrho, dgq, dgpi, eta, dphi, dphiprime, dphiprimeprime, k, grho, gpres, deltafprime
       type(C_PTR) :: crosschecks
     end function crosschecks
 

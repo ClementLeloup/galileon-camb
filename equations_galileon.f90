@@ -83,7 +83,7 @@
 
       CHARACTER(len=Ini_max_string_len) :: InputFile, outroot
       real(dl) :: grhora2, rhonu, omegar, omegam, hub
-      integer nu_i
+      integer nu_i, status
 
       !Set the input file to look into for parameters
       InputFile = ''
@@ -107,7 +107,11 @@
          hub = CP%h0/c*1000
 
          !Set the background with parameters from input file
-         call arrays(InputFile, omegar, omegam, hub, CP%c2, CP%c3, CP%c4, CP%c5, CP%cG)
+         status = arrays(InputFile, omegar, omegam, hub, CP%c2, CP%c3, CP%c4, CP%c5, CP%cG)
+         if (status /= 0) then
+            stop
+         end if
+
          !call arrays('params.ini'//C_NULL_CHAR, OutputFile, omegar)
       end if
 
@@ -1342,7 +1346,7 @@
     gpres=(grhog_t+grhor_t)/3
     if (CP%use_galileon) then
        grhogal_t=grhogal(a)
-       gpresgal_t=gpresgal(a)
+       gpresgal_t=gpresgal()
        grho=grho+grhogal_t
        gpres=gpres+gpresgal_t
     else 
@@ -1380,7 +1384,7 @@
 
        !Modified by Clement Leloup
        if (CP%use_galileon) then
-          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, k)
           z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
        else
@@ -1404,7 +1408,7 @@
 
        !Modified by Clement Leloup
        if (CP%use_galileon) then
-          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, k)
           z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
        else
@@ -1450,11 +1454,11 @@
 
     !Modified by Clement Leloup
     if (CP%use_galileon) then
-       dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+       dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, k)
        dgrho = dgrho + dgrhogal_t
-       dgqgal_t = qgal(dgq, etak, dphi, dphiprime, a, k)
+       dgqgal_t = qgal(dgq, etak, dphi, dphiprime, k)
        dgq = dgq + dgqgal_t
-       dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, a, k)
+       dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, k)
        dgpi = dgpi + dgpigal_t
     end if
 
@@ -1492,7 +1496,7 @@
     !Modified by Clement Leloup
     if (CP%use_galileon) then
        diff_rhopi = pidot_sum - (4*(dgpi-dgpigal_t)+dgpi_diff)*adotoa
-       pigaldot = pigalprime(dgrho, dgq, dgpi, diff_rhopi, etak, dphi, dphiprime, a, k, grho, gpres)
+       pigaldot = pigalprime(dgrho, dgq, dgpi, diff_rhopi, etak, dphi, dphiprime, k, grho, gpres)
        diff_rhopi = diff_rhopi + pigaldot
     else
        diff_rhopi = pidot_sum - (4*dgpi+dgpi_diff)*adotoa
@@ -1570,10 +1574,10 @@
        clxgdot = yprime(EV%g_ix)
        dotdeltaf = grhob_t*(clxbdot - 3*adotoa*clxb) + grhoc_t*(clxcdot - 3*adotoa*clxc) + grhor_t*(clxrdot - 4*adotoa*clxr) + grhog_t*(clxgdot - 4*adotoa*clxg) !derivative of fluids' dgrho
        dphiprimeprime = yprime(EV%w_ix+1)
-       cptr_to_cc = crosschecks(dgrho, dgq, dgpi, etak, dphi, dphiprime, dphiprimeprime, a, k, grho, gpres, dotdeltaf)
+       cptr_to_cc = crosschecks(dgrho, dgq, dgpi, etak, dphi, dphiprime, dphiprimeprime, k, grho, gpres, dotdeltaf)
        call C_F_POINTER(cptr_to_cc, cc, [2])
 
-       if (cc(1) .ge. 1d-5 .or. cc(2) .ge. 1d-5) then
+       if (cc(1) .ge. 1d-5  .or. cc(1) .le. -1d-5.or. cc(2) .ge. 1d-5 .or. cc(2) .le. -1d-5) then
           write (*,*) 'The conservation equations are not verified at a = ', a, ', and k = ', k, '.'
           stop
        end if
@@ -2197,7 +2201,7 @@
     !Modified by Clement Leloup
     gpres=gpres+(grhog_t+grhor_t)/3
     if (CP%use_galileon) then
-       gpresgal_t=gpresgal(a)
+       gpresgal_t=gpresgal()
        gpres=gpres+gpresgal_t
     else
        gpres=gpres+grhov_t*w_lam
@@ -2252,7 +2256,7 @@
 
        !Modified by Clement Leloup
        if (CP%use_galileon) then
-          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+          dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, k)
           z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
        else
@@ -2276,7 +2280,7 @@
 
            !Modified by Clement Leloup
            if (CP%use_galileon) then
-              dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+              dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, k)
               z=(0.5_dl*(dgrho+dgrhogal_t)/k + etak)/adotoa
               dz= -adotoa*z - 0.5_dl*(dgrho+dgrhogal_t)/k
            else
@@ -2313,9 +2317,9 @@
 
     !Modified by Clement Leloup
     if(CP%use_galileon) then
-       dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, a, k)
+       dgrhogal_t = Chigal(dgrho, etak, dphi, dphiprime, k)
        dgrho = dgrho + dgrhogal_t
-       dgqgal_t = qgal(dgq, etak, dphi, dphiprime, a, k)
+       dgqgal_t = qgal(dgq, etak, dphi, dphiprime, k)
        dgq = dgq + dgqgal_t
     end if
 
@@ -2347,7 +2351,7 @@
         
         !Modified by Clement Leloup
         if (CP%use_galileon) then
-           dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, a, k)
+           dgpigal_t = Pigal(dgrho, dgq, dgpi, etak, dphi, k)
            dgpi = dgpi + dgpigal_t
         end if
 
@@ -2396,7 +2400,7 @@
 
             !Modified by Clement Leloup
             if (CP%use_galileon) then
-               dgpigal_t = Pigal(dgrho, dgq, dgs, etak, dphi, a, k)
+               dgpigal_t = Pigal(dgrho, dgq, dgs, etak, dphi, k)
                dgs = dgs + dgpigal_t
             end if
 
@@ -2528,7 +2532,7 @@
        dotdeltaf = grhob_t*(clxbdot - 3*adotoa*clxb) + grhoc_t*(clxcdot - 3*adotoa*clxc) + grhor_t*(clxrdot - 4*adotoa*clxr) + grhog_t*(clxgdot - 4*adotoa*clxg) !derivative of fluids' dgrho
 
        ayprime(EV%w_ix) = dphiprime
-       dphiprimeprime = dphisecond(dgrho, dgq, etak, dphi, dphiprime, a, k, dotdeltaf)
+       dphiprimeprime = dphisecond(dgrho, dgq, etak, dphi, dphiprime, k, dotdeltaf)
        ayprime(EV%w_ix+1) = dphiprimeprime
 
     else if (w_lam /= -1 .and. w_Perturb) then
@@ -2669,7 +2673,7 @@
     gpres=(grhog_t+grhor_t)/3._dl
     if (CP%use_galileon) then
        grhogal_t=grhogal(a)
-       gpresgal_t=gpresgal(a)
+       gpresgal_t=gpresgal()
        grho=grho+grhogal_t
        gpres=gpres+gpresgal_t
     else

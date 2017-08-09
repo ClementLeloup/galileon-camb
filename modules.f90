@@ -425,7 +425,14 @@
         write(*,'("Om_b h^2             = ",f9.6)') CP%omegab*(CP%H0/100)**2
         write(*,'("Om_c h^2             = ",f9.6)') CP%omegac*(CP%H0/100)**2
         write(*,'("Om_nu h^2            = ",f9.6)') CP%omegan*(CP%H0/100)**2
-        write(*,'("Om_Lambda            = ",f9.6)') CP%omegav
+
+        !Modified by Clement Leloup
+        if (CP%use_galileon) then
+           write(*,'("Om_Phi            = ",f9.6)') CP%omegav
+        else
+           write(*,'("Om_Lambda            = ",f9.6)') CP%omegav
+        end if
+
         write(*,'("Om_K                 = ",f9.6)') CP%omegak
         write(*,'("Om_m (1-Om_K-Om_L)   = ",f9.6)') 1-CP%omegak-CP%omegav
         write(*,'("100 theta (CosmoMC)  = ",f9.6)') 100*CosmomcTheta()

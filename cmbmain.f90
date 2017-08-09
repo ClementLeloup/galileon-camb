@@ -976,13 +976,13 @@
             dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
             if (CP%use_galileon) then
                grho = (grhob/y(1)+grhoc/y(1)+grhornomass/(y(1)*y(1))+grhog/(y(1)*y(1))+grhogal(y(1)))
-               gpres=(grhog/(y(1)*y(1))+grhor/(y(1)*y(1)))/3+gpresgal(y(1))
+               gpres=(grhog/(y(1)*y(1))+grhor/(y(1)*y(1)))/3+gpresgal()
 
-               dgrhogal = Chigal(dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
+               dgrhogal = Chigal(dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), EV%q)
                dgrho = dgrho + dgrhogal
-               dgqgal = qgal(dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), y(1), EV%q)
+               dgqgal = qgal(dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), EV%q)
                dgq = dgq + dgqgal
-               dgpigal = Pigal(dgrho, dgq, dgpi, y(2), y(EV%w_ix), y(1), EV%q)
+               dgpigal = Pigal(dgrho, dgq, dgpi, y(2), y(EV%w_ix), EV%q)
                dgpi = dgpi + dgpigal
                deltagal = 0
                if (y(1) .ge. 9.99999d-7) then
