@@ -204,8 +204,10 @@ char** readParamsFile(const char* filename){
   Tested with Mathematica with c0 and y0 = 0.
 
  */
-inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3], double dhda, double dxda) {
+inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3]) {
   double k1,k2,k3,k4,k5,k6;
+  double alpha,gamma,beta,sigma,lambda,omega,denom;
+  double dhdlna,dxdlna;
 
   // system from lna in z : 
   // y[0](lna) -> y[0](z)
@@ -213,25 +215,35 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3], double dhda, doub
   // f[0](lna) -> -(1+z)*f[0](z)
   // f[1](lna) -> (1+z)^2*f[1](z)+(1+z)*y[1](z)
 
-  double prod = a*y[0]*y[1];
+  double xgal = a*y[1];
+  double prod = xgal*y[0];
   double prod2 = prod*prod;
   double prod3 = prod*prod2;
   double prod4 = prod*prod3;
+  double prod5 = prod*prod4;
   double h = y[0];
   double h2 = h*h;
   double h3 = h*h2;
-  dh = a*dhda;
-  double x = a*y[1];
-  // double dx = a*a*f[1]-a*y[1];
-  // dx += 2*a*y[1];
-  dx = a*a*dxda+x;
+  double h4 = h2*h2;
 
-  k1 = -6*c4*h*prod2*(dh*x + h*dx + prod/3.0) -2*c0 + c5*h2*prod3*(12*h*dx + 15*dh*x + 3*prod) + 2.0*cG*(dh*prod+h2*dx+h*prod);
+  // The equations : 
+  alpha = c0*h + c2/6.0*prod - 3*c3*h*prod2 + 15*c4*h2*prod3 - 17.5*c5*h3*prod4 - 3.0*cG*h2*prod;
+  gamma = 2*c0*h2 + c2/3.0*h*prod - c3*h2*prod2 + 2.5*c5*h4*prod4 - 2.0*cG*h3*prod;
+  beta = -2*c3*h3*prod + c2/6.0*h2 + 9*c4*h4*prod2 - 10*c5*h4*h*prod3 - cG*h4;
+  sigma = 2.0*( 1.0 - 2*c0*y[2] )*h - 2.0*c0*prod + 2.0*c3*prod3 - 15.0*c4*h*prod4 + 21.0*c5*h2*prod5 + 6.0*cG*h*prod2;
+  lambda = 3.0*( 1 - 2*c0*y[2] )*h2 + orad/(a*a*a*a) - 2.0*c0*h*prod - 2.0*c3*h*prod3 + c2/2.0*prod2 + 7.5*c4*h2*prod4 - 9.0*c5*h3*prod5 - cG*h2*prod2;
+  omega = -2*c0*h2 + 2*c3*h2*prod2 - 12*c4*h3*prod3 + 15*c5*h4*prod4 + 4.0*cG*h3*prod;
+  denom = sigma*beta - alpha*omega;
+
+  dhdlna = (omega*gamma - lambda*beta)/denom;
+  dxdlna = (alpha*lambda - sigma*gamma)/denom - xgal;
+
+  k1 = -6*c4*h*prod2*(dhdlna*xgal + h*dxdlna + prod/3.0) -2*c0 + c5*h2*prod3*(12*h*dxdlna + 15*dhdlna*xgal + 3*prod) + 2.0*cG*(dhdlna*prod+h2*dxdlna+h*prod);
   k2 = -0.5*c2 + 6*c3*h*prod - 27*c4*h2*prod2 + 30*c5*h3*prod3 + 3.0*cG*h2;
-  k3 = -(1.0 - 2.0*c0*y[2]) - 0.5*c4*prod4 - 3*c5*h*prod4*(h*dx + dh*x) + cG*prod2;
-  k4 = -2.0*(1.0 - 2.0*c0*y[2]) + 3.0*c4*prod4 - 6*c5*h*prod*prod4 - 2.0*cG*prod2;
+  k3 = -(1.0 - 2.0*c0*y[2]) - 0.5*c4*prod4 - 3*c5*h*prod4*(h*dxdlna + dhdlna*xgal) + cG*prod2;
+  k4 = -2.0*(1.0 - 2.0*c0*y[2]) + 3.0*c4*prod4 - 6*c5*h*prod5 - 2.0*cG*prod2;
   k5 = 2*c3*prod2 - 12*c4*h*prod3 -2.0*c0 + 15.0*c5*h2*prod4 + 4.0*cG*h*prod;
-  k6 = 0.5*c2 - 2.0*c3*( h2*dx + dh*prod + 2*h*prod ) + c4*( 12*h3*prod*dx + 18*h*prod2*dh + 13*h2*prod2 ) - c5*( 18*h2*h2*prod2*dx + 30*h2*prod3*dh + 12*h3*prod3 ) - cG*( 2.0*h*dh + 3.0*h2 );
+  k6 = 0.5*c2 - 2.0*c3*( h2*dxdlna + dhdlna*prod + 2*h*prod ) + c4*( 12*h3*prod*dxdlna + 18*h*prod2*dhdlna + 13*h2*prod2 ) - c5*( 18*h2*h2*prod2*dxdlna + 30*h2*prod3*dhdlna + 12*h3*prod3 ) - cG*( 2.0*h*dhdlna + 3.0*h2 );
 
   double noghost = k2 + 1.5*k5*k5/k4;
   double cs2 = (4*k1*k4*k5 - 2*k3*k5*k5 - 2*k4*k4*k6)/(k4*(2*k4*k2 + 3*k5*k5));
@@ -239,20 +251,26 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3], double dhda, doub
   // parameters we have noghost=1e-16, condition passes anyway
   // and then rk4 fails and gives NaN values.
 
-  // // Check instabilities for tensorial modes (cf Felice & Tsujikawa) -> there are probably errors here on cG terms
-  // double noghostt = 0.5 - 0.75*c4*prod4 + 1.5*c5*prod4*prod*h + 0.5*cG*prod2 - c0*y[2];
-  // double ct2 = (0.5 + 0.25*c4*prod4 + 1.5*c5*prod4*h*(h*dx+dh*x) - 0.5*cG*prod2 -c0*y[2]) / (0.5 - 0.75*c4*prod4 + 1.5*c5*prod4*prod*h + 0.5*cG*prod2 -c0*y[2]);
+  // Check instabilities for tensorial modes (cf Felice & Tsujikawa)
+  double noghostt = 0.5 - 0.75*c4*prod4 + 1.5*c5*prod5*h + 0.5*cG*prod2 - c0*y[2];
+  double ct2 = (0.5 + 0.25*c4*prod4 + 1.5*c5*prod4*h*(h*dxdlna+dhdlna*xgal) - 0.5*cG*prod2 -c0*y[2]) / (0.5 - 0.75*c4*prod4 + 1.5*c5*prod5*h + 0.5*cG*prod2 - c0*y[2]);
 
-  if ( noghost>-1e-8 ){
-    fprintf(stderr, "Error : scalar no ghost constraint not verified : Qs = %.12f\n", noghost);
-    return 6;
+  if(noghost>-1e-8){
+    fprintf(stderr, "Error : scalar no ghost constraint not verified : a = %.12f \t Qs = %.12f\n", a, noghost);
+    return 1;
   }
-  if ( cs2<0 ){
-    fprintf(stderr, "Error : complex sound speed : cs2 = %.12f\n", cs2);
-    return 7;
+  if(cs2<0){
+    fprintf(stderr, "Error : complex sound speed : a = %.12f \t cs2 = %.12f\n", a, cs2);
+    return 2;
   }
-  // if ( noghostt < 0 )  status = 2;
-  // if ( ct2 < 0) status = 3;
+  if(noghostt < 0){
+    fprintf(stderr, "Error : tensorial no ghost constraint not verified : a = %.12f \t QT = %.12f\n", a, noghostt);
+    return 3;
+  }
+  if(ct2 < 0){
+    fprintf(stderr, "Error : Laplace stability condition not verified : a = %f \t cT2 = %f \t %f \t %f \t %f \t %f \t %f \t %f\n", a, ct2, prod, prod4, h, xgal, dhdlna, dxdlna);
+    return 4;
+  }
 
   return 0;
 
@@ -268,11 +286,8 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3], double dhda, doub
 int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params){
 
   double alpha,gamma,beta,sigma,lambda,omega,OmegaP,OmegaM,OmTest;
-  const double *in_params = static_cast<const double*>(params);
-  bool store_derivs = (int)in_params[0];
-
-  int status = 0;
-
+  // const double *in_params = static_cast<const double*>(params);
+  // bool store_derivs = (int)in_params[0];
   double prod = a*y[0]*y[1]; // prod=h*x
   double prod2 = prod*prod;
   double prod3 = prod*prod2;
@@ -284,9 +299,9 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
   double h4 = h2*h2;
   double a2 = a*a;
 
-  OmegaP = ( 6.0*c0*(h*prod+y[2]*h2) + c2/2.0*prod2 - 6.0*c3*h*prod3 + 22.5*c4*h2*prod4 - 21.0*c5*h3*prod5 - 9*cG*h2*prod2  )/(3.0*h2) ;
-  OmegaM = 1 - OmegaP - orad/(a2*a2*h2);
-  OmTest = om/(a2*a*h2);
+//  OmegaP = ( 6.0*c0*(h*prod+y[2]*h2) + c2/2.0*prod2 - 6.0*c3*h*prod3 + 22.5*c4*h2*prod4 - 21.0*c5*h3*prod5 - 9*cG*h2*prod2  )/(3.0*h2) ;
+//  OmegaM = 1 - OmegaP - orad/(a2*a2*h2);
+//  OmTest = om/(a2*a*h2);
 
   // The equations : 
   alpha = c0*h + c2/6.0*prod - 3*c3*h*prod2 + 15*c4*h2*prod3 - 17.5*c5*h3*prod4 - 3.0*cG*h2*prod;
@@ -300,11 +315,6 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
   f[0] = (omega*gamma - lambda*beta) / (a*denom);
   f[1] = (alpha*lambda - sigma*gamma) / (a2*denom) - 2.0*y[1]/a;
   f[2] = y[1];
-
-  if(store_derivs){
-    dh = f[0];
-    dx = f[1];
-  }
 
   return GSL_SUCCESS;
 }
@@ -344,8 +354,8 @@ int calcHubbleGalileon(){
     return 9;
   }
 
-  double params[1];
-  params[0] = true; // whether or not to store derivatives of h and x (used for the check of theoretical constraints)
+  double params[1] = {}; // to check theoretical constraints or not
+  // params[0] = 0;
 
   int testPert;
   double h2, x1, x2, x3, a3;
@@ -375,17 +385,14 @@ int calcHubbleGalileon(){
       gsl_odeiv_evolve_free(e);
       gsl_odeiv_control_free(c);
       gsl_odeiv_step_free(s);
-      printf("\nError : Failure with om = %f, c2 = %f, c3 = %f, c4 = %f, c5 = %f, cG = %f and c0 = %f at a = %f, h = %f, x = %f and y = %f\n", om, c2, c3, c4, c5, cG, c0, acurrtarg, y[0], y[1], y[2]);
-      // return 8;
-      exit(EXIT_FAILURE);
+      fprintf(stderr, "\nFailure with om = %f, c2 = %f, c3 = %f, c4 = %f, c5 = %f, cG = %f and c0 = %f at a = %f, h = %f, x = %f and y = %f\n", om, c2, c3, c4, c5, cG, c0, acurrtarg, y[0], y[1], y[2]);
+      return 8;
     }
 
     if(params[0]){
-      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y, dh, dx);
+      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y);
       if(testPert != 0){
-	fprintf(stderr, "Error : Theoretical constraints not verified.\n");
-	// return 7;
-	exit(EXIT_FAILURE);
+        return 7;
       }
     }
 
@@ -400,14 +407,12 @@ int calcHubbleGalileon(){
     OmegaM = 1 - OmegaP - orad/(a3*intvar[i]*h2);
     OmTest = om/(a3*h2);
     if(OmegaP<0){
-      fprintf(stderr, "Error : Negative galileon energy density : %.12f\n", OmegaP);
-      // return 5;
-      exit(EXIT_FAILURE);
+      fprintf(stderr, "Negative galileon energy density : a = %.12f \t %.12f\n", intvar[i], OmegaP);
+      return 5;
     }
     if ( fabs((OmegaM - OmTest)/OmTest)>1e-4 ) {
-      fprintf(stderr, "Error : Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], h2, fabs((OmegaM - OmTest)/OmTest));
-      // return 4;
-      exit(EXIT_FAILURE);
+      fprintf(stderr, "Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs((OmegaM - OmTest)/OmTest));
+      return 4;
     }
     hubble[i] = y[0];
     x[i] = y[1];
@@ -500,8 +505,8 @@ int ageOfUniverse(double &age, double cond[4]){
   int testPert;
   double h2, x1, x2, x3, a3;
   double OmegaP, OmegaM, OmTest;
-  double params[1];
-  params[0] = true; // whether or not to store derivatives of h and x (used for the check of theoretical constraints)
+  double params[1] = {}; // to check theoretical constraints or not
+  // params[0] = 0;
 
   // Vector y = ( dh/dz, dx/dz, dy/dz )
   double y[3] = {cond[0], cond[1], cond[2]};  //Inital value of integral
@@ -546,11 +551,10 @@ int ageOfUniverse(double &age, double cond[4]){
     }
 
     if(params[0]){
-      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y, dh, dx);
+      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y);
       if(testPert != 0){
-	fprintf(stderr, "Error : Theoretical constraints not verified.\n");
-	// return 7;
-	exit(EXIT_FAILURE);
+	fprintf(stderr, "Theoretical constraints not verified.\n");
+	return 7;
       }
     }
     
@@ -696,7 +700,6 @@ int initCond(double &xi, double H[2], double ratio_rho, double age){
 
 // Function that calculates dtau/da = 1/(a^2*H) (tau being confromal time)
 // The function is the one linked to CAMB in order to calculate the background contribution
-// extern "C" void arrays_(char* infile, double* omegar){
 extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0in, double* c2in, double* c3in, double* c4in, double* c5in, double* cGin){
 
   fflush(stdout);
