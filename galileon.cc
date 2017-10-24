@@ -1,3 +1,9 @@
+// Modified by Clement Leloup 04-10-2017 :
+// Corrected all functions calculating perturbations
+// Added global variables to store current value of h,x,dh/dlna,dx/dlna
+// Added calcPertOmC2C3C4C5CGC0 function to check if theoretical constraints are verified
+// Removed the JNEVEUz way of solving background
+// Added massive neutrinos
 // Modified by Clement Leloup 09-12-2016 :
 // Added the interpolation global variables and the interpolation in arrays_
 // Modified by Clement Leloup 06-12-2016 :
@@ -43,6 +49,7 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_math.h>
+#include <gsl/gsl_integration.h>
 
 #include <iostream>
 #include <iomanip>
@@ -76,8 +83,6 @@ double xcurr = 0;
 double dx = 0;
 double dh = 0;
 
-double q = 0; // common ratio of the intvar progression
-
 // Interpolation tools
 gsl_interp_accel* acc;
 gsl_spline* spline_h;
@@ -99,6 +104,10 @@ double h0 = 0;
 double lightspeed = 2.99792458e8;
 double Mp = sqrt(1/(8.*M_PI*6.6738e-11));
 
+// External functions from fortran
+extern"C" void massivenu_mp_nu_rho_(double* am, double* rhonu);
+extern"C" void massivenu_mp_nu_background_(double* am, double* rhonu, double* pnu);
+extern"C" void massivenu_mp_nurhopres_(double* am, double* rhonu, double* pnu);
 
 // Return absolute max of vector
 double maxVec(std::vector<double> vec){
@@ -114,7 +123,6 @@ double maxVec(std::vector<double> vec){
   return max;
 
 }
-
 
 // Function to read parameters from a file
 char** readParamsFile(const char* filename){
@@ -202,7 +210,6 @@ char** readParamsFile(const char* filename){
      (\f$\Omega_m, c_2, c_3, c_4, c_5, c_G, c_0, orad, useacoord\f$)
 
   Tested with Mathematica with c0 and y0 = 0.
-
  */
 inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3]) {
   double k1,k2,k3,k4,k5,k6;
@@ -255,6 +262,9 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3]) {
   double noghostt = 0.5 - 0.75*c4*prod4 + 1.5*c5*prod5*h + 0.5*cG*prod2 - c0*y[2];
   double ct2 = (0.5 + 0.25*c4*prod4 + 1.5*c5*prod4*h*(h*dxdlna+dhdlna*xgal) - 0.5*cG*prod2 -c0*y[2]) / (0.5 - 0.75*c4*prod4 + 1.5*c5*prod5*h + 0.5*cG*prod2 - c0*y[2]);
 
+  // //For tests
+  // printf("Theoretical constraints - a = %.12f\tQs = %.12f\tcs2 = %.12f\tQt = %.12f\tct2 = %.12f\n", a, noghost, cs2, noghostt, ct2);
+
   if(noghost>-1e-8){
     fprintf(stderr, "Error : scalar no ghost constraint not verified : a = %.12f \t Qs = %.12f\n", a, noghost);
     return 1;
@@ -264,11 +274,11 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3]) {
     return 2;
   }
   if(noghostt < 0){
-    fprintf(stderr, "Error : tensorial no ghost constraint not verified : a = %.12f \t QT = %.12f\n", a, noghostt);
+    fprintf(stderr, "Error : tensorial no ghost constraint not verified : a = %.12f \t Qt = %.12f\n", a, noghostt);
     return 3;
   }
   if(ct2 < 0){
-    fprintf(stderr, "Error : Laplace stability condition not verified : a = %f \t cT2 = %f \t %f \t %f \t %f \t %f \t %f \t %f\n", a, ct2, prod, prod4, h, xgal, dhdlna, dxdlna);
+    fprintf(stderr, "Error : Laplace stability condition not verified : a = %f \t cT2 = %f\n", a, ct2);
     return 4;
   }
 
@@ -286,8 +296,14 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3]) {
 int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params){
 
   double alpha,gamma,beta,sigma,lambda,omega,OmegaP,OmegaM,OmTest;
-  // const double *in_params = static_cast<const double*>(params);
+  const double *in_params = static_cast<const double*>(params);
   // bool store_derivs = (int)in_params[0];
+  double grhormass[5];
+  for(int i = 0; i<5; i++){ grhormass[i] = in_params[i]; }
+  double nu_masses[5];
+  for(int i = 0; i<5; i++){ nu_masses[i] = in_params[5+i]; }
+  int nu_mass_eigenstates = in_params[10];
+
   double prod = a*y[0]*y[1]; // prod=h*x
   double prod2 = prod*prod;
   double prod3 = prod*prod2;
@@ -299,16 +315,25 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
   double h4 = h2*h2;
   double a2 = a*a;
 
-//  OmegaP = ( 6.0*c0*(h*prod+y[2]*h2) + c2/2.0*prod2 - 6.0*c3*h*prod3 + 22.5*c4*h2*prod4 - 21.0*c5*h3*prod5 - 9*cG*h2*prod2  )/(3.0*h2) ;
-//  OmegaM = 1 - OmegaP - orad/(a2*a2*h2);
-//  OmTest = om/(a2*a*h2);
-
   // The equations : 
   alpha = c0*h + c2/6.0*prod - 3*c3*h*prod2 + 15*c4*h2*prod3 - 17.5*c5*h3*prod4 - 3.0*cG*h2*prod;
   gamma = 2*c0*h2 + c2/3.0*h*prod - c3*h2*prod2 + 2.5*c5*h4*prod4 - 2.0*cG*h3*prod;
   beta = -2*c3*h3*prod + c2/6.0*h2 + 9*c4*h4*prod2 - 10*c5*h4*h*prod3 - cG*h4;
   sigma = 2.0*( 1.0 - 2*c0*y[2] )*h - 2.0*c0*prod + 2.0*c3*prod3 - 15.0*c4*h*prod4 + 21.0*c5*h2*prod5 + 6.0*cG*h*prod2;
   lambda = 3.0*( 1 - 2*c0*y[2] )*h2 + orad/(a2*a2) - 2.0*c0*h*prod - 2.0*c3*h*prod3 + c2/2.0*prod2 + 7.5*c4*h2*prod4 - 9.0*c5*h3*prod5 - cG*h2*prod2;
+
+  // Contribution from massive neutrinos
+  if(nu_mass_eigenstates>0){
+    for(int i=0; i<nu_mass_eigenstates; i++){
+      double rhonu = 0;
+      double pnu = 0;
+      double am = a*nu_masses[i];
+      massivenu_mp_nu_background_(&am, &rhonu, &pnu);
+      lambda += grhormass[i]*pnu/(a2*a2*h0*h0);
+      // printf("i : %d \t a : %.16f \t am : %.16f \t rhonu : %.16f \t lambda_numass : %.16f\n", i, a, am, rhonu, grhormass[i]*pnu/(a2*a2*h0*h0));
+    }
+  }
+
   omega = -2*c0*h2 + 2*c3*h2*prod2 - 12*c4*h3*prod3 + 15*c5*h4*prod4 + 4.0*cG*h3*prod;
 
   double denom = sigma*beta - alpha*omega;
@@ -347,19 +372,20 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
 		       \status = 8 : failed to integrate
 		       \status = 9 : one of the global vectors is empty
 */
-int calcHubbleGalileon(){
+int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
   if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
     printf("One of the global arrays is empty\n");
     return 9;
   }
 
-  double params[1] = {}; // to check theoretical constraints or not
-  // params[0] = 0;
-
   int testPert;
   double h2, x1, x2, x3, a3;
   double OmegaP, OmegaM, OmTest;
+  double params[11]; // parameters for massive neutrinos
+  for(int i = 0; i<5; i++){ params[i] = grhormass[i]; }
+  for(int i = 0; i<5; i++){ params[5+i] = nu_masses[i]; }
+  params[10] = (*nu_mass_eigenstates);
 
   const gsl_odeiv_step_type * T = gsl_odeiv_step_rkf45;
   gsl_odeiv_step * s = gsl_odeiv_step_alloc(T, 3);
@@ -396,6 +422,7 @@ int calcHubbleGalileon(){
       }
     }
 
+    // Variables to optimize computation
     h2 = y[0]*y[0];
     x1 = intvar[i]*y[1];
     x2 = x1*x1;
@@ -405,13 +432,30 @@ int calcHubbleGalileon(){
     // Friedmann equation for background
     OmegaP = (0.5*c2*x2 - 6*c3*h2*x3 + 22.5*c4*h2*h2*x2*x2 - 21*c5*h2*h2*h2*x3*x2 - 9*cG*h2*x2)/3.0;
     OmegaM = 1 - OmegaP - orad/(a3*intvar[i]*h2);
+
+    // Contribution from massive neutrinos
+    if((*nu_mass_eigenstates)>0){
+      for(int j=0; j<(*nu_mass_eigenstates); j++){
+    	double rhonu = 0;
+	double pnu = 0;
+    	double am = intvar[i]*nu_masses[j];
+    	massivenu_mp_nu_background_(&am, &rhonu, &pnu);
+    	OmegaM -= grhormass[j]*rhonu/(a3*intvar[i]*3.*h2*pow(h0, 2));
+      }
+    }
+
     OmTest = om/(a3*h2);
     if(OmegaP<0){
       fprintf(stderr, "Negative galileon energy density : a = %.12f \t %.12f\n", intvar[i], OmegaP);
       return 5;
     }
+
+    // //For test
+    // printf("Test on OmegaM : %f %f %f %f %f %f %f %f %f %f %f %f %f %.12f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, grhormass[0]*nuRho(intvar[i]*nu_masses[0])/(a3*intvar[i]*3.*h2*pow(h0, 2)), intvar[i], fabs((OmegaM - OmTest)/OmTest));
+    // printf("lambda : %.12f\tusual : %.12f\tfrom massive neutrinos : %.12f\n", lambda, 3.0*h2 + orad/(a3*intvar[i]) - 2.0*c0*h2*x1 - 2.0*c3*h2*h2*x3 + c2/2.0*h2*x2 + 7.5*c4*h2*h2*h2*x2*x2 - 9.0*c5*h2*h2*h2*h2*x3*x2 - cG*h2*h2*x2, grhormass[0]*nuPres(intvar[i]*nu_masses[0])/(a3*intvar[i]*h0*h0));
+
     if ( fabs((OmegaM - OmTest)/OmTest)>1e-4 ) {
-      fprintf(stderr, "Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], pow(y[0], 2), fabs((OmegaM - OmTest)/OmTest));
+      fprintf(stderr, "Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, OmegaM - 1 + OmegaP + orad/(a3*intvar[i]*h2), intvar[i], fabs((OmegaM - OmTest)/OmTest));
       return 4;
     }
     hubble[i] = y[0];
@@ -491,7 +535,7 @@ void calcHubbleTracker(){
 		       \status = 7 : tensorial constraints not satisfied
 		       \status = 8 : failed to integrate
 */
-int ageOfUniverse(double &age, double cond[4]){
+int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
   if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
     printf("One of the global arrays is empty\n");
@@ -505,8 +549,10 @@ int ageOfUniverse(double &age, double cond[4]){
   int testPert;
   double h2, x1, x2, x3, a3;
   double OmegaP, OmegaM, OmTest;
-  double params[1] = {}; // to check theoretical constraints or not
-  // params[0] = 0;
+  double params[11]; // to check theoretical constraints or not
+  for(int i = 0; i<5; i++){ params[i] = grhormass[i]; }
+  for(int i = 0; i<5; i++){ params[5+i] = nu_masses[i]; }
+  params[10] = (*nu_mass_eigenstates);
 
   // Vector y = ( dh/dz, dx/dz, dy/dz )
   double y[3] = {cond[0], cond[1], cond[2]};  //Inital value of integral
@@ -567,6 +613,17 @@ int ageOfUniverse(double &age, double cond[4]){
     // Friedmann equation for background
     OmegaP = (0.5*c2*x2 - 6*c3*h2*x3 + 22.5*c4*h2*h2*x2*x2 - 21*c5*h2*h2*h2*x3*x2 - 9*cG*h2*x2)/3.0;
     OmegaM = 1 - OmegaP - orad/(a3*intvar[i]*h2);
+
+    // Contribution from massive neutrinos
+    if((*nu_mass_eigenstates)>0){
+      for(int j=0; j<(*nu_mass_eigenstates); j++){
+    	double rhonu = 0;
+    	double am = intvar[i]*nu_masses[j];
+    	massivenu_mp_nu_rho_(&am, &rhonu);
+    	OmegaM -= grhormass[j]*rhonu/(a3*intvar[i]*3.*h2*pow(h0, 2));
+      }
+    }
+
     OmTest = om/(a3*h2);
     if(OmegaP<0) return 5;
     if ( fabs((OmegaM - OmTest)/OmTest)>1e-4 ) {
@@ -578,7 +635,6 @@ int ageOfUniverse(double &age, double cond[4]){
     prec_age = 1/(intvar[i]*y[0]);
     hubble[i-1] = y[0];
     x[i-1] = y[1];
-    // printf("%.12f \t %.12f \t %.12f \t %.12f\n", intvar[i], hubble[i-1], x[i-1], age);
   }
   gsl_odeiv_evolve_free (e);
   gsl_odeiv_control_free (c);
@@ -611,20 +667,8 @@ int ageOfUniverse(double &age, double cond[4]){
   \param[out] table of h(a)
   \param[out] table of x(a)
 */
-// struct AgeofU{
-//   int i; // Position in the vector
-//   double a; // Age of Universe
-//   AgeofU(int pos, double u_age) : i(pos), a(u_age) {} // Initialization of AgeofU
-// };
 
-// struct less_than_key{
-//   // To sort by the difference to the input age of universe, while keeping the initial position
-//   inline bool operator() (const AgeofU& struct1, const AgeofU& struct2){
-//     return (fabs(struct1.a) < fabs(struct2.a));
-//   }
-// };
-
-int initCond(double &xi, double H[2], double ratio_rho, double age){
+int initCond(double &xi, double H[2], double ratio_rho, double age, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
   if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
     printf("One of the global arrays is empty\n");
@@ -689,7 +733,7 @@ int initCond(double &xi, double H[2], double ratio_rho, double age){
   cond[2] = 0;
   cond[3] = Mpc/Gyr*(1/H[1]-pow(intvar[1], 2)/2*(1/(intvar[0]*H[0])-1/(intvar[1]*H[1]))/(intvar[0]-intvar[1])); // Initial value of the age of the Universe, extrapolating linearly the integral
 
-  ageOfUniverse(computed_age, cond);
+  ageOfUniverse(computed_age, cond, grhormass, nu_masses, nu_mass_eigenstates);
 
   printf("Initial condition for x is %e, it gives an age of the universe equal to %f\n", xi, computed_age);
 
@@ -700,7 +744,7 @@ int initCond(double &xi, double H[2], double ratio_rho, double age){
 
 // Function that calculates dtau/da = 1/(a^2*H) (tau being confromal time)
 // The function is the one linked to CAMB in order to calculate the background contribution
-extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0in, double* c2in, double* c3in, double* c4in, double* c5in, double* cGin){
+extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0in, double* c2in, double* c3in, double* c4in, double* c5in, double* cGin, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
   fflush(stdout);
 
@@ -711,15 +755,8 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
 
   char** params = readParamsFile(infile);
 
-  // c2 = (*params != "") ? atof(*params) : 0;
-  // c3 = (*(params+1) != "") ? atof(*(params+1)) : 0;
-  // c4 = (*(params+2) != "") ? atof(*(params+2)) : 0;
-  // c0 = (*(params+4) != "") ? atof(*(params+4)) : 0;
-  // cG = (*(params+5) != "") ? atof(*(params+5)) : 0;
   double ratio_rho = (*(params+6) != "") ? atof(*(params+6)) : 0;
   double age = (*(params+7) != "") ? atof(*(params+7)) : 0;
-  // om = (*(params+8) != "" && *(params+9) != "" && *(params+12) != "") ? (atof(*(params+8))+atof(*(params+9)))/pow(atof(*(params+12)), 2)*10000 : 0;
-  // h0 = (*(params+12) != "") ? atof(*(params+12))*1000/lightspeed : 0;
   c5 = (*(params+3) != "") ? atof(*(params+3)) : 0;
   char* solvingMethod = *(params+10);
   orad = (*omegar);
@@ -732,16 +769,7 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   om = (*omegam);
   orad = (*omegar);
   h0 = (*H0in);
-
-  if(solvingMethod != "") solvingMethod[strlen(solvingMethod)-1] = '\0';
-  if(strcmp(solvingMethod, "NEVEU") != 0 && strcmp(solvingMethod, "BARREIRA") != 0){
-    fprintf(stderr, "WARNING : invalid integration method, will use the default one\n");
-  } else if(strcmp(solvingMethod, "NEVEU") == 0){
-    coord = NEVEU;
-    c5 = (-1. + om + orad + c2/6. - 2*c3 + 7.5*c4 - 3*cG)/7.;
-  } else if(strcmp(solvingMethod, "BARREIRA") == 0){
-    coord = BARREIRA;
-  }
+  double grhom = 3*pow(h0, 2); // critical density
 
   double dotphi = (*(params+11) != "") ? atof(*(params+11)) : 0; // careful, dotphi is the initial condition on x !!!
   char* outfile = *(params+13); // take same output file name root as camb
@@ -752,6 +780,27 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   outfile = strcat(outfile, "background.dat");
 
   printf("Input file : %s\nOutput file : %s\n", infile, outfile);
+
+  if(solvingMethod != "") solvingMethod[strlen(solvingMethod)-1] = '\0';
+  if(strcmp(solvingMethod, "NEVEU") != 0 && strcmp(solvingMethod, "BARREIRA") != 0){
+    fprintf(stderr, "WARNING : invalid integration method, will use the default one\n");
+  } else if(strcmp(solvingMethod, "NEVEU") == 0){
+    coord = NEVEU;
+    c5 = (-1. + om + orad + c2/6. - 2*c3 + 7.5*c4 - 3*cG)/7.;
+
+    // Add massive neutrinos
+    double rhonu = 0;
+    if((*nu_mass_eigenstates)>0){
+      for(int i = 0; i<(*nu_mass_eigenstates); i++){
+	massivenu_mp_nu_rho_(&(nu_masses[i]), &rhonu);
+	c5 += rhonu*grhormass[i]/(7.*grhom);
+	// printf("Omeganu of mass eigenstate %d = %.16f\n", i, rhonu*grhormass[i]*0.726*0.726*94.07/grhom);
+      }
+    }
+  } else if(strcmp(solvingMethod, "BARREIRA") == 0){
+    coord = BARREIRA;
+  }
+
   printf("OmegaM0 = %f\nOmegaR0 = %.18f\nc0 = %f\nc2 = %f\nc3 = %f\nc4 = %f\nc5 = %f\ncG = %f\nh0 = %f Mpc-1\n", om, orad, c0, c2, c3, c4, c5, cG, h0);
 
   // The status of the integration, 0 if everything ok
@@ -767,7 +816,7 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     intvar.push_back(apremin);
 
     // Fill the vector of a with a geometric sequence
-    q = 1.+5./10000;
+    double q = 1.+5./10000;
     for(int i = 0; i<log(amax/amin)/log(q); i++){
       intvar.push_back(amin*pow(q, i));
     }
@@ -777,20 +826,35 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     // Calculate initial conditions in H and ratio_rho
     double xi = 0;
     double H[2];
+
+    // Massive neutrinos at apremin
+    double omeganu_premin = 0;
+    double rhonu_premin = 0;
+    // Massive neutrinos at amin
+    double omeganu_min = 0;
+    double rhonu_min = 0;
+    if((*nu_mass_eigenstates)>0){
+      for(int i = 0; i<(*nu_mass_eigenstates); i++){ // apremin
+	double am = apremin*nu_masses[i];
+	massivenu_mp_nu_rho_(&am, &rhonu_premin);
+	omeganu_premin += rhonu_premin*grhormass[i]/grhom;
+	// omeganu_premin += nuRho(apremin*nu_masses[i])*grhormass[i]/grhom;
+      }
+      for(int i = 0; i<(*nu_mass_eigenstates); i++){ // amin
+	double am = amin*nu_masses[i];
+	massivenu_mp_nu_rho_(&am, &rhonu_premin);
+	omeganu_min += rhonu_min*grhormass[i]/grhom;
+	// omeganu_min += nuRho(amin*nu_masses[i])*grhormass[i]/grhom;
+      }
+    }
+
     if(dotphi == 0){ // if dotphi is not given (i.e. initial condition is on ratio_rho)
-      H[0] = sqrt(om/pow(apremin, 3)*(1+ratio_rho)+orad/pow(apremin, 4));
-      H[1] = sqrt(om/pow(amin, 3)*(1+ratio_rho)+orad/pow(amin, 4));
+      H[0] = sqrt(om/pow(apremin, 3)*(1+ratio_rho)+orad/pow(apremin, 4) + omeganu_premin/pow(apremin, 4));
+      H[1] = sqrt(om/pow(amin, 3)*(1+ratio_rho)+orad/pow(amin, 4) + omeganu_min/pow(apremin, 4));
     } else{
-      H[0] = sqrt(om/pow(apremin, 3)+orad/pow(apremin, 4));
-      H[1] = sqrt(om/pow(amin, 3)*(1+ratio_rho)+orad/pow(amin, 4));
+      H[0] = sqrt(om/pow(apremin, 3)+orad/pow(apremin, 4) + omeganu_premin/pow(apremin, 4));
+      H[1] = sqrt(om/pow(amin, 3)*(1+ratio_rho)+orad/pow(amin, 4) + omeganu_min/pow(apremin, 4));
       ratio_rho = pow(intvar[1], 3)/(3*om)*(0.5*c2*pow(dotphi*H[1], 2)-6*c3*H[1]*pow(dotphi*H[1], 3)+22.5*c4*pow(H[1], 2)*pow(dotphi*H[1], 4)-21*c5*pow(H[1], 3)*pow(dotphi*H[1], 5)-9*cG*pow(H[1], 2)*pow(dotphi*H[1], 2));
-      // ratio_rho = pow(intvar[1], 3)/(3*om*pow(H[1], 2))*(0.5*c2*pow(dotphi, 2) - 6*c3*H[1]*pow(dotphi, 3) + 22.5*c4*pow(H[1], 2)*pow(dotphi, 4) - 21*c5*pow(H[1], 3)*pow(dotphi, 5) - 9*cG*pow(H[1], 2)*pow(dotphi, 2));
-      // ratio_rho = pow(intvar[1], 3)/(3*om*pow(h0*Mp, 2))*(0.5*c2*pow(dotphi, 2) - 6*c3/(Mp*pow(h0, 2))*h0*H[1]*pow(dotphi, 3) + 22.5*c4/pow(Mp*pow(h0, 2), 2)*pow(h0*H[1], 2)*pow(dotphi, 4) - 21*c5/pow(Mp*pow(h0, 2), 3)*pow(h0*H[1], 3)*pow(dotphi, 5) - 9*cG/pow(h0, 2)*pow(h0*H[1], 2)*pow(dotphi, 2));
-
-      std::cout << "H : " << H[1] << endl;
-      std::cout << "ratio_rho : " << ratio_rho << endl;
-
-      // xi = dotphi/(Mp*h0*H[1]);
       xi = dotphi;
     }
 
@@ -798,7 +862,7 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     x.resize(intvar.size()-1, 999999);
 
     // Calculate initial conditions in x and fill hubble and x from then to now
-    status = initCond(xi, H, ratio_rho, age);
+    status = initCond(xi, H, ratio_rho, age, grhormass, nu_masses, nu_mass_eigenstates);
 
     printf("\nstatus = %i\n", status);
 
@@ -813,7 +877,7 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
 
     // Fill the vector of a with a geometric sequence
     double nb = 30000; // number of a points using q0
-    q = pow(amin/amax, 1./nb);
+    double q = pow(amin/amax, 1./nb);
     for(int i = 0; i<=nb; i++){
       intvar.push_back(amax*pow(q, i));
     }
@@ -826,7 +890,8 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     // Integrate and fill hubble and x both when tracker and not tracker
     if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
     {
-      status = calcHubbleGalileon();
+      printf("nu_mass_eigenstates : %d\n", (*nu_mass_eigenstates));
+      status = calcHubbleGalileon(grhormass, nu_masses, nu_mass_eigenstates);
     }
     else {
       calcHubbleTracker();
@@ -905,29 +970,18 @@ extern "C" double* handxofa_(double* point){
   double alpha = 0;
   int i = 0;
 
-  //printf("%i, %i, %f, %f, %i, %f, %f, %.12f\n", i, hubble.size(), hubble[i], hubble[i-1], intvar.size(), intvar[i+1], intvar[i], (*point));
-
   // Spline interpolation
   if(coord == BARREIRA){
     hx[0] = gsl_spline_eval(spline_h, *point, acc);
     hx[1] = gsl_spline_eval(spline_x, *point, acc);
+    if(*point < 3e-6){
+      double a3 = (*point)*(*point)*(*point);
+      double hubble_LCDM = sqrt(om/a3+orad/(a3*(*point))+(1-om-orad));
+      if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time (a = %f, h_LCDM = %f and h_gal = %f)\n", (*point), hubble_LCDM, hx[0]);
+    }
   } else if(coord == NEVEU){
     hx[0] = gsl_spline_eval(spline_h, *point, acc);
     hx[1] = gsl_spline_eval(spline_x, *point, acc);
-  }
-
-  // double OmegaP = (0.5*c2*pow(hx[0], 2)*pow((*point)*hx[1], 2) - 6*c3*pow(hx[0], 4)*pow((*point)*hx[1], 3) + 22.5*c4*pow(hx[0], 6)*pow((*point)*hx[1], 4) - 21*c5*pow(hx[0], 8)*pow((*point)*hx[1], 5) - 9*cG*pow(hx[0], 4)*pow((*point)*hx[1], 2))/(3.0*pow(hx[0], 2));
-  // double OmegaM = 1 - OmegaP - orad/(pow((*point),4)*pow(hx[0], 2));
-  // double OmTest = om/(pow((*point),3)*pow(hx[0], 2));
-  // if ( fabs(OmegaM - OmTest)>1e-4  ) {
-  //   printf("Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, *point, pow(hx[0], 2), fabs(OmegaM - OmTest));
-  // }
-
-  double a3 = (*point)*(*point)*(*point);
-
-  if(*point < 3e-6){
-    double hubble_LCDM = sqrt(om/a3+orad/(a3*(*point))+(1-om-orad));
-    if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time ( a = %f, h_LCDM = %f and h_gal = %f)\n", (*point), hubble_LCDM, hx[0]);
   }
 
   return hx;
@@ -974,7 +1028,8 @@ extern "C" double grhogal_(double* point){
 
   double grhogal = 0;
 
-  if(*point >= 9.99999e-7) grhogal = h0*h0*a2*(c2/2*h2*xgal2 - 6*c3*h4*xgal3 + 22.5*c4*h4*h2*xgal4 - 21*c5*h4*h4*xgal5 - 9*cG*h4*xgal2);
+  // if(*point >= 9.99999e-7) grhogal = h0*h0*a2*(c2/2*h2*xgal2 - 6*c3*h4*xgal3 + 22.5*c4*h4*h2*xgal4 - 21*c5*h4*h4*xgal5 - 9*cG*h4*xgal2);
+  if(*point >= 1e-4) grhogal = h0*h0*a2*(c2/2*h2*xgal2 - 6*c3*h4*xgal3 + 22.5*c4*h4*h2*xgal4 - 21*c5*h4*h4*xgal5 - 9*cG*h4*xgal2);
 
   //printf("grhogal : %.12f \t %.12f \t %.12f \t %.12f\n", *point, h, xgal, grhogal);
 
@@ -1001,7 +1056,8 @@ extern "C" double gpresgal_(){
 
   double gpresgal = 0;
 
-  if(acurr >= 9.99999e-7) gpresgal = h0*h0*a2*(c2/2*h2*xgal2 + 2*c3*h3*xgal2*(hprime*xgal+xprime*h) - c4*(4.5*h6*xgal4 + 12*h6*xgal2*xgal*xprime + 15*h4*h*xgal4*hprime) + 3*c5*h6*h*xgal4*(5*h*xprime+7*hprime*xgal+2*h*xgal) + cG*(6*h3*xgal2*hprime + 4*h4*xgal*xprime + 3*h4*xgal2));
+  // if(acurr >= 9.99999e-7) gpresgal = h0*h0*a2*(c2/2*h2*xgal2 + 2*c3*h3*xgal2*(hprime*xgal+xprime*h) - c4*(4.5*h6*xgal4 + 12*h6*xgal2*xgal*xprime + 15*h4*h*xgal4*hprime) + 3*c5*h6*h*xgal4*(5*h*xprime+7*hprime*xgal+2*h*xgal) + cG*(6*h3*xgal2*hprime + 4*h4*xgal*xprime + 3*h4*xgal2));
+  if(acurr >= 1e-4) gpresgal = h0*h0*a2*(c2/2*h2*xgal2 + 2*c3*h3*xgal2*(hprime*xgal+xprime*h) - c4*(4.5*h6*xgal4 + 12*h6*xgal2*xgal*xprime + 15*h4*h*xgal4*hprime) + 3*c5*h6*h*xgal4*(5*h*xprime+7*hprime*xgal+2*h*xgal) + cG*(6*h3*xgal2*hprime + 4*h4*xgal*xprime + 3*h4*xgal2));
 
   return gpresgal;
 
@@ -1043,7 +1099,8 @@ extern "C" double Chigal_(double* dgrho, double* eta, double* dphi, double* dphi
 
   double ChiG = 0;
 
-  if (acurr >= 9.99999e-7) ChiG = beta*(ChitildeG + 0.5*alpha_Z*(*dgrho) + (alpha_Z - 2*alpha_eta)*(*k)*(*eta));
+  // if (acurr >= 9.99999e-7) ChiG = beta*(ChitildeG + 0.5*alpha_Z*(*dgrho) + (alpha_Z - 2*alpha_eta)*(*k)*(*eta));
+  if (acurr >= 1e-4) ChiG = beta*(ChitildeG + 0.5*alpha_Z*(*dgrho) + (alpha_Z - 2*alpha_eta)*(*k)*(*eta));
 
   // FILE* g = fopen("chigal/chigal_q0001.dat", "a");
   // fprintf(g, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", acurr, ChiG, (*dgrho), beta*ChitildeG, 0.5*beta*alpha_Z*(*dgrho), beta*(alpha_Z - 2*alpha_eta)*(*k)*(*eta));
@@ -1085,7 +1142,8 @@ extern "C" double qgal_(double* dgq, double* eta, double* dphi, double* dphiprim
   double qG = 0;
 
   // if(-1e-5 < 1.5*alpha - 1 && 1.5*alpha - 1 < 1e-5) printf("WARNING : 1/beta_q is zero");
-  if(acurr >= 9.99999e-7) qG = beta*(qtildeG + 1.5*alpha*(*dgq));
+  // if(acurr >= 9.99999e-7) qG = beta*(qtildeG + 1.5*alpha*(*dgq));
+  if(acurr >= 1e-4) qG = beta*(qtildeG + 1.5*alpha*(*dgq));
 
   // FILE* g = fopen("qgal/qgal_q0001.dat", "a");
   // fprintf(g, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", acurr, qG, (*dgq), beta*qtildeG, 1.5*beta*alpha*(*dgq));
@@ -1137,7 +1195,8 @@ extern "C" double Pigal_(double* dgrho, double* dgq, double* dgpi, double* eta, 
   double PiG = 0;
 
   // if(-1e-5 < (alpha_phi - 2*alpha_sigprime+2) && (alpha_phi - 2*alpha_sigprime+2) < 1e-5) printf("WARNING : 1/beta_pi is zero");
-  if(acurr >= 9.99999e-7) PiG = beta_pi*(PitildeG + (alpha_sigprime - 0.5*alpha_phi)*(*dgpi) + 0.5*(2*alpha_sigprime + alpha_sig - alpha_phi)*((*dgrho) + 3*h0*h/(*k)*(*dgq)) + (alpha_sig + alpha_sigprime)*(*k)*(*eta));
+  // if(acurr >= 9.99999e-7) PiG = beta_pi*(PitildeG + (alpha_sigprime - 0.5*alpha_phi)*(*dgpi) + 0.5*(2*alpha_sigprime + alpha_sig - alpha_phi)*((*dgrho) + 3*h0*h/(*k)*(*dgq)) + (alpha_sig + alpha_sigprime)*(*k)*(*eta));
+  if(acurr >= 1e-4) PiG = beta_pi*(PitildeG + (alpha_sigprime - 0.5*alpha_phi)*(*dgpi) + 0.5*(2*alpha_sigprime + alpha_sig - alpha_phi)*((*dgrho) + 3*h0*h/(*k)*(*dgq)) + (alpha_sig + alpha_sigprime)*(*k)*(*eta));
 
   // FILE* g = fopen("pigal/pigal_q0001.dat", "a");
   // fprintf(g, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", acurr, PiG, (*dgpi), beta_pi*PitildeG, beta_pi*(0.5*alpha_phi - alpha_sigprime)*(*dgpi), beta_pi*(0.5*alpha_sig - 0.5*alpha_phi + alpha_sigprime)*(*dgrho), 3*beta_pi*(0.5*alpha_sig - 0.5*alpha_phi + alpha_sigprime)*h0*h/(*k)*(*dgq), beta_pi*(alpha_sig + alpha_sigprime)*(*k)*(*eta));
@@ -1236,7 +1295,8 @@ extern "C" double dphisecond_(double* dgrho, double* dgq, double* eta, double* d
 
   double ksi = alpha_Zprime/(h0*h*(2-beta_Z));
   double dphisecond = 0;
-  if(acurr >= 9.99999e-7) dphisecond = -(alpha_gammaprime*h0*h*(*dphiprime) + alpha_gamma*pow(*k, 2)*(*dphi) + (0.5*alpha_Z + 2*ksi*(h0*h - 0.5*(h0*hprime + beta_Z*h0*h) + 0.25*(beta_Z_prime + beta_Z*h0*hprime)))*(*dgrho) + ksi*(1-beta_eta)*(*k)*(*dgq) + ksi*dotdeltaf + ksi*chiprimehat + (alpha_Z - 2*alpha_eta + 2*ksi*(2*beta_eta*h0*h - h0*hprime - beta_Z*h0*h - beta_eta_prime + 0.5*(beta_Z_prime + beta_Z*h0*hprime)))*(*k)*(*eta))/(alpha_gammasecond + ksi*beta_gammasecond);
+  // if(acurr >= 9.99999e-7) dphisecond = -(alpha_gammaprime*h0*h*(*dphiprime) + alpha_gamma*pow(*k, 2)*(*dphi) + (0.5*alpha_Z + 2*ksi*(h0*h - 0.5*(h0*hprime + beta_Z*h0*h) + 0.25*(beta_Z_prime + beta_Z*h0*hprime)))*(*dgrho) + ksi*(1-beta_eta)*(*k)*(*dgq) + ksi*dotdeltaf + ksi*chiprimehat + (alpha_Z - 2*alpha_eta + 2*ksi*(2*beta_eta*h0*h - h0*hprime - beta_Z*h0*h - beta_eta_prime + 0.5*(beta_Z_prime + beta_Z*h0*hprime)))*(*k)*(*eta))/(alpha_gammasecond + ksi*beta_gammasecond);
+  if(acurr >= 1e-4) dphisecond = -(alpha_gammaprime*h0*h*(*dphiprime) + alpha_gamma*pow(*k, 2)*(*dphi) + (0.5*alpha_Z + 2*ksi*(h0*h - 0.5*(h0*hprime + beta_Z*h0*h) + 0.25*(beta_Z_prime + beta_Z*h0*hprime)))*(*dgrho) + ksi*(1-beta_eta)*(*k)*(*dgq) + ksi*dotdeltaf + ksi*chiprimehat + (alpha_Z - 2*alpha_eta + 2*ksi*(2*beta_eta*h0*h - h0*hprime - beta_Z*h0*h - beta_eta_prime + 0.5*(beta_Z_prime + beta_Z*h0*hprime)))*(*k)*(*eta))/(alpha_gammasecond + ksi*beta_gammasecond);
 
   // FILE* g = fopen("dphisecond/dphisecond_q0001.dat", "a");
   // fprintf(g, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", acurr, dphisecond, alpha_gammaprime/alpha_gammasecond*h0*h*(*dphiprime), alpha_gamma/alpha_gammasecond*pow(*k, 2)*(*dphi), 0.5/alpha_gammasecond*(alpha_Z - 2*alpha_Zprime)*(*dgrho), (alpha_Z - alpha_Zprime - 2*alpha_eta)/alpha_gammasecond*(*k)*(*eta), (*dphiprime), (*dphi));
@@ -1322,7 +1382,8 @@ extern "C" double pigalprime_(double* dgrho, double* dgq, double* dgpi, double* 
 
   double piGdot = 0;
 
-  if(acurr >= 9.99999e-7) piGdot = (piprimetilde + (alpha_sigprime - 0.5*alpha_phi)*(*pidot) + (-3.5*h0*h*alpha_sigprime + 0.5*h0*hprime*alpha_sigprime + 0.25*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres))/(h0*h) + 0.5*h0*hprime*alpha_sig + 0.5*alpha_sig_prime + alpha_sigprime_prime - 2*h0*h*alpha_sig + 1.5*h0*h*alpha_phi - 0.5*alpha_phi_prime)*(*dgrho) + (alpha_sig_prime + alpha_sigprime_prime + alpha_sigprime*h0*hprime + alpha_sig*h0*hprime - 3*h0*h*alpha_sigprime - 3*h0*h*alpha_sig + 0.5*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres))/(h0*h))*(*k)*(*eta) + 0.5/(*k)*(3*pow(h0, 2)*h*hprime*alpha_sigprime + 3*pow(h0, 2)*h*hprime*alpha_sig + 1.5*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres)) + 3*h0*h*alpha_sig_prime - 12*pow(h0, 2)*h2*alpha_sig - 21*pow(h0, 2)*h2*alpha_sigprime - 3*h0*h*alpha_phi_prime + 9*pow(h0, 2)*h2*alpha_phi + 6*h0*h*alpha_sigprime_prime + pow(*k, 2)*(alpha_phi - alpha_sigprime))*(*dgq) + (-2*h0*h*alpha_sigprime + h0*h*alpha_phi - 0.5*alpha_phi_prime + alpha_sigprime_prime - h0*h*alpha_sig)*(*dgpi))/(1. - alpha_sigprime + 0.5*alpha_phi);
+  // if(acurr >= 9.99999e-7) piGdot = (piprimetilde + (alpha_sigprime - 0.5*alpha_phi)*(*pidot) + (-3.5*h0*h*alpha_sigprime + 0.5*h0*hprime*alpha_sigprime + 0.25*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres))/(h0*h) + 0.5*h0*hprime*alpha_sig + 0.5*alpha_sig_prime + alpha_sigprime_prime - 2*h0*h*alpha_sig + 1.5*h0*h*alpha_phi - 0.5*alpha_phi_prime)*(*dgrho) + (alpha_sig_prime + alpha_sigprime_prime + alpha_sigprime*h0*hprime + alpha_sig*h0*hprime - 3*h0*h*alpha_sigprime - 3*h0*h*alpha_sig + 0.5*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres))/(h0*h))*(*k)*(*eta) + 0.5/(*k)*(3*pow(h0, 2)*h*hprime*alpha_sigprime + 3*pow(h0, 2)*h*hprime*alpha_sig + 1.5*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres)) + 3*h0*h*alpha_sig_prime - 12*pow(h0, 2)*h2*alpha_sig - 21*pow(h0, 2)*h2*alpha_sigprime - 3*h0*h*alpha_phi_prime + 9*pow(h0, 2)*h2*alpha_phi + 6*h0*h*alpha_sigprime_prime + pow(*k, 2)*(alpha_phi - alpha_sigprime))*(*dgq) + (-2*h0*h*alpha_sigprime + h0*h*alpha_phi - 0.5*alpha_phi_prime + alpha_sigprime_prime - h0*h*alpha_sig)*(*dgpi))/(1. - alpha_sigprime + 0.5*alpha_phi);
+  if(acurr >= 1e-4) piGdot = (piprimetilde + (alpha_sigprime - 0.5*alpha_phi)*(*pidot) + (-3.5*h0*h*alpha_sigprime + 0.5*h0*hprime*alpha_sigprime + 0.25*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres))/(h0*h) + 0.5*h0*hprime*alpha_sig + 0.5*alpha_sig_prime + alpha_sigprime_prime - 2*h0*h*alpha_sig + 1.5*h0*h*alpha_phi - 0.5*alpha_phi_prime)*(*dgrho) + (alpha_sig_prime + alpha_sigprime_prime + alpha_sigprime*h0*hprime + alpha_sig*h0*hprime - 3*h0*h*alpha_sigprime - 3*h0*h*alpha_sig + 0.5*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres))/(h0*h))*(*k)*(*eta) + 0.5/(*k)*(3*pow(h0, 2)*h*hprime*alpha_sigprime + 3*pow(h0, 2)*h*hprime*alpha_sig + 1.5*(alpha_phi - alpha_sigprime)*((*grho)+(*gpres)) + 3*h0*h*alpha_sig_prime - 12*pow(h0, 2)*h2*alpha_sig - 21*pow(h0, 2)*h2*alpha_sigprime - 3*h0*h*alpha_phi_prime + 9*pow(h0, 2)*h2*alpha_phi + 6*h0*h*alpha_sigprime_prime + pow(*k, 2)*(alpha_phi - alpha_sigprime))*(*dgq) + (-2*h0*h*alpha_sigprime + h0*h*alpha_phi - 0.5*alpha_phi_prime + alpha_sigprime_prime - h0*h*alpha_sig)*(*dgpi))/(1. - alpha_sigprime + 0.5*alpha_phi);
 
   return piGdot;
 
@@ -1331,7 +1392,8 @@ extern "C" double pigalprime_(double* dgrho, double* dgq, double* dgpi, double* 
 // Cross checks that independent equations are satisfied by perturbations
 extern "C" double*  crosschecks_(double* dgrho, double* dgq, double* dgpi, double* eta, double* dphi, double* dphiprime, double* dphiprimeprime, double* k, double* grho, double* gpres, double* deltafprime){
 
-  static double eq[2];
+  // static double eq[2];
+  static double eq[7];
 
   double a2 = acurr*acurr;
   double a4 = a2*a2;
@@ -1406,7 +1468,10 @@ extern "C" double*  crosschecks_(double* dgrho, double* dgq, double* dgpi, doubl
   eq49.push_back((*k)*(*dgq));
   // double max0 = fmax(dotdelta, fmax(((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)), fmax(h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime, (*k)*(*dgq))));
   double max0 = maxVec(eq49);
-  eq[0] = (dotdelta + ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)) + (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq))/max0;
+  // eq[0] = (dotdelta + ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)) + (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq))/max0;
+  eq[0] = (dotdelta + ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)) + (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq))/dotdelta;
+  eq[1] = (dotdelta + ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)) + (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq))/((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta));
+  eq[2] = (dotdelta + ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)) + (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq))/((h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq));
 
   // Equation (50) of arXiv:1208.0600  
   std::vector<double> eq50;
@@ -1416,13 +1481,17 @@ extern "C" double*  crosschecks_(double* dgrho, double* dgq, double* dgpi, doubl
   eq50.push_back(2./3.*(*k)*(*dgpi));
   // double max1 = fmax(dotdeltaq, fmax(4*h0*h*(*dgq), fmax(2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)), 2./3.*(*k)*(*dgpi))));
   double max1 = maxVec(eq50);
-  eq[1] = (dotdeltaq + 4*h0*h*(*dgq) + 2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)) + 2./3.*(*k)*(*dgpi))/max1;
+  // eq[1] = (dotdeltaq + 4*h0*h*(*dgq) + 2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)) + 2./3.*(*k)*(*dgpi))/max1;
+  eq[3] = (dotdeltaq + 4*h0*h*(*dgq) + 2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)) + 2./3.*(*k)*(*dgpi))/dotdeltaq;
+  eq[4] = (dotdeltaq + 4*h0*h*(*dgq) + 2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)) + 2./3.*(*k)*(*dgpi))/(4*h0*h*(*dgq));
+  eq[5] = (dotdeltaq + 4*h0*h*(*dgq) + 2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)) + 2./3.*(*k)*(*dgpi))/(2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)));
+  eq[6] = (dotdeltaq + 4*h0*h*(*dgq) + 2./3.*(*k)*(khzprime/(h0*h) + (*k)*(*eta) + (*dgrho)) + 2./3.*(*k)*(*dgpi))/(2./3.*(*k)*(*dgpi));
 
 
-  // FILE* g = fopen("crosschecks/crosschecks_q0001.dat", "a");
+  FILE* g = fopen("crosschecks/crosschecks_galileon1_eq49ratios_q1.dat", "a");
   // fprintf(g, "%.16f \t %.16f \t %.16f\n", acurr, eq[0], eq[1]);
-  // // fprintf(g, "%.16f \t %.16f \t %.16f \t %.16f \t %.16f \t %.16f\n", acurr, dotdelta, ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)), (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime), (*k)*(*dgq), max0);
-  // fclose(g);
+  fprintf(g, "%.16f \t %.16f \t %.16f \t %.16f \t %.16f\n", acurr, dotdelta, ((*grho)+(*gpres))/(h0*h)*(0.5*(*dgrho) + (*k)*(*eta)), (h0*h*((*dgrho) - 2*(*k)*(*eta)) - 2*khzprime) + (*k)*(*dgq), eq[0]);
+  fclose(g);
 
   return eq;
 
@@ -1470,7 +1539,7 @@ int test(){
   om = 0.279;
 
 
-  arrays_("params_galjerem.ini", &orad, &om, &h0, &c2, &c3, &c4, &c5, &cG);
+  // arrays_("params_galjerem.ini", &orad, &om, &h0, &c2, &c3, &c4, &c5, &cG);
 
   // arrays_("params_galjerem.ini", &orad);
   // FILE* f = fopen("full_integration.txt", "w");

@@ -72,6 +72,7 @@
       !massive neutrinos are initialized and after GetOmegak
 
       !Modified by Clement Leloup
+      use iso_c_binding
       use constants
       use ModelParams
       use MassiveNu
@@ -82,8 +83,9 @@
       implicit none
 
       CHARACTER(len=Ini_max_string_len) :: InputFile, outroot
-      real(dl) :: grhora2, rhonu, omegar, omegam, hub
-      integer nu_i, status
+      real(dl) :: grhorad, rhonu, omegar, omegam, hub
+      integer nu_i, status, i
+      type(C_PTR) :: cptr1, cptr2
 
       !Set the input file to look into for parameters
       InputFile = ''
@@ -91,28 +93,21 @@
       if (InputFile == '') stop 'No parameter input file'
       
       if (CP%use_galileon) then         
-         grhora2 = grhog+grhornomass
-         if (CP%Num_Nu_massive /= 0) then
-            !Get massive neutrino density relative to massless
-!!$            do nu_i = 1, CP%nu_mass_eigenstates
-!!$               call Nu_rho(nu_masses(nu_i),rhonu)
-!!$               grhora2=grhora2+rhonu*grhormass(nu_i)
-!!$            end do
-         end if
+         grhorad = grhog+grhornomass
 
-         !print *, grhog, grhornomass, grhor2, rhonu, grhormass(nu_i)
-
-         omegar = grhora2/grhom
+         omegar = grhorad/grhom
          omegam = CP%omegab + CP%omegac
          hub = CP%h0/c*1000
 
+         cptr1 = C_LOC(grhormass(1))
+         cptr2 = C_LOC(nu_masses(1))
+
          !Set the background with parameters from input file
-         status = arrays(InputFile, omegar, omegam, hub, CP%c2, CP%c3, CP%c4, CP%c5, CP%cG)
+         status = arrays(InputFile, omegar, omegam, hub, CP%c2, CP%c3, CP%c4, CP%c5, CP%cG, cptr1, cptr2, CP%nu_mass_eigenstates)
          if (status /= 0) then
             stop
          end if
 
-         !call arrays('params.ini'//C_NULL_CHAR, OutputFile, omegar)
       end if
 
     end  subroutine init_background
@@ -1305,6 +1300,7 @@
     yprime = 0
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
 
+
     if (EV%TightCoupling .or. EV%no_phot_multpoles) then
         pol=0
         polprime=0
@@ -1319,7 +1315,6 @@
     k2=EV%k2_buf
 
     a   =y(1)
-
     a2  =a*a
     etak=y(2)
     clxc=y(3)
@@ -1415,7 +1410,6 @@
           z=(0.5_dl*dgrho/k + etak)/adotoa
           dz= -adotoa*z - 0.5_dl*dgrho/k
        end if
-
        clxg=-4*dz/k -4/k*opac(j)*(vb+z)
        qg=-4._dl/3*z
        pig=0
@@ -1423,7 +1417,6 @@
        octg=0
        octgprime=0
        qgdot = -4*dz/3
-
     else
         if (EV%TightCoupling) then
             pig = EV%pig
@@ -1478,7 +1471,6 @@
         divfac=(CP%r*rofChi(x))**2*k2
     end if
 
-
     if (EV%TightCoupling) then
         if (second_order_tightcoupling) then
             pigdot = EV%pigdot
@@ -1521,7 +1513,6 @@
         (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
         (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
 
-!!$    print *, "fortran : ", a, " ; ", pigaldot, " ; ", grhog_t*pigdot, " ; ", grhor_t*pirdot
 
     ! Doppler term
     !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
@@ -1551,6 +1542,10 @@
         sources(2)=0
     end if
 
+!!$    !Modified by Clement Leloup
+!!$    sources(2) = dgrho/grho
+
+
     if (CTransScal%NumSources > 2) then
         !Get lensing sources
         !Can modify this here if you want to get power spectra for other tracer
@@ -1565,6 +1560,9 @@
         end if
     end if
 
+!!$    !Modified by Clement Leloup
+!!$    sources(3) = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
+
 
     !Modified by Clement Leloup
     if (CP%use_galileon) then
@@ -1577,10 +1575,10 @@
        cptr_to_cc = crosschecks(dgrho, dgq, dgpi, etak, dphi, dphiprime, dphiprimeprime, k, grho, gpres, dotdeltaf)
        call C_F_POINTER(cptr_to_cc, cc, [2])
 
-       if (cc(1) .ge. 1d-5  .or. cc(1) .le. -1d-5.or. cc(2) .ge. 1d-5 .or. cc(2) .le. -1d-5) then
-          write (*,*) 'The conservation equations are not verified at a = ', a, ', and k = ', k, '.'
-          stop
-       end if
+!!$       if (cc(1) .ge. 1d-5  .or. cc(1) .le. -1d-5.or. cc(2) .ge. 1d-5 .or. cc(2) .le. -1d-5) then
+!!$          write (*,*) 'The conservation equations are not verified at a = ', a, ', and k = ', k, '.'
+!!$          stop
+!!$       end if
     end if
     
 

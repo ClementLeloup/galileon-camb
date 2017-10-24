@@ -1,15 +1,18 @@
 module interface
   !use, intrinsic :: iso_c_binding
   use ISO_C_BINDING
-  !implicit none
+  implicit none
 
   interface
 !!$     subroutine arrays(infile, outfile, omegar) bind(C, name='arrays_')
-     function arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin) bind(C, name='arrays_')
-       import C_CHAR, C_DOUBLE ! Make iso c binding visible here
+     function arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin, grhormass, nu_masses, nu_mass_eigenstates) bind(C, name='arrays_')
+       import C_CHAR, C_DOUBLE, C_INT, C_PTR ! Make iso c binding visible here
 !!$       character(kind=C_CHAR), dimension(*) :: infile, outfile
        character(kind=C_CHAR), dimension(*) :: infile
        real(kind=C_DOUBLE) :: omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin
+       integer(C_INT) :: nu_mass_eigenstates
+       type(C_PTR), value :: grhormass, nu_masses
+!!$       real(C_DOUBLE), intent(in), dimension(*) :: grhormass, nu_masses
        integer :: arrays
     end function arrays
 
