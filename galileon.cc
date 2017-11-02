@@ -415,11 +415,9 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
       return 8;
     }
 
-    if(params[0]){
-      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y);
-      if(testPert != 0){
-        return 7;
-      }
+    testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y);
+    if(testPert != 0){
+      return 7;
     }
 
     // Variables to optimize computation

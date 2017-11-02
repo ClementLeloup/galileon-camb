@@ -116,7 +116,7 @@
 
     !Modified by Clement Leloup
     real(dl) :: fixq = 0._dl !Debug output of one q
-    !real(dl) :: fixq = 0.001_dl !Debug output of one q
+    !real(dl) :: fixq = 1.0_dl !Debug output of one q
 
     real(dl) :: ALens = 1._dl
 
@@ -686,7 +686,6 @@
     end if
 
     call GetNumEqns(EV)
-
     if (CP%WantScalars .and. global_error_flag==0) call CalcScalarSources(EV,taustart)
     if (CP%WantVectors .and. global_error_flag==0) call CalcVectorSources(EV,taustart)
     if (CP%WantTensors .and. global_error_flag==0) call CalcTensorSources(EV,taustart)
@@ -937,8 +936,6 @@
     !Modified by Clement Leloup
     real(dl) dgrho, dgrhogal,  dgq, dgqgal, dgpi, dgpigal, phi, deltagal
     real(dl) grho, gpres, dotdeltaf, dotdeltaqf
-    type(C_PTR) :: cptr_to_cc
-    real(kind=C_DOUBLE), pointer :: cc(:)
 
     external dtauda
 
@@ -959,12 +956,13 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve/evolve_q0001.txt',1)
-        do j=1,1000
-            tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
+        call CreateTxtFile('evolve/evolve_q1.txt',1)
+        do j=1,5000
+            tauend = taustart+(j-1)*(CP%tau0-taustart)/5000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
             yprime = 0
             call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+!!$            call output(EV, y, j, tau, sources)
             adotoa = 1/(y(1)*dtauda(y(1)))
             ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
             delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
@@ -998,9 +996,10 @@
             !Modified by Clement Leloup
             !write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
             if (CP%use_galileon) then
-               write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1), y(EV%w_ix+1), yprime(EV%w_ix+1)
+               !write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(y(1)), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1), y(EV%w_ix+1), yprime(EV%w_ix+1)
+!!$               write (1,'(6F30.15)') y(1),y(EV%w_ix),y(EV%w_ix+1),sources(1),sources(2),sources(3)
             else
-               write (1,'(10E15.5)') tau, 0, 0, 0, 0, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, y(1)
+               write (1,'(6E30.15)') y(1), 0, 0,sources(1),sources(2),sources(3)
             end if
         end do
         close(1)

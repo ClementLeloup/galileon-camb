@@ -1282,6 +1282,7 @@
     real(dl) clxcdot, clxbdot, clxgdot, clxrdot, dotdeltaf
     type(C_PTR) :: cptr_to_cc
     real(kind=C_DOUBLE), pointer :: cc(:)
+    integer cross_i
 
 
     real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
@@ -1573,12 +1574,14 @@
        dotdeltaf = grhob_t*(clxbdot - 3*adotoa*clxb) + grhoc_t*(clxcdot - 3*adotoa*clxc) + grhor_t*(clxrdot - 4*adotoa*clxr) + grhog_t*(clxgdot - 4*adotoa*clxg) !derivative of fluids' dgrho
        dphiprimeprime = yprime(EV%w_ix+1)
        cptr_to_cc = crosschecks(dgrho, dgq, dgpi, etak, dphi, dphiprime, dphiprimeprime, k, grho, gpres, dotdeltaf)
-       call C_F_POINTER(cptr_to_cc, cc, [2])
+       call C_F_POINTER(cptr_to_cc, cc, [7])
 
-!!$       if (cc(1) .ge. 1d-5  .or. cc(1) .le. -1d-5.or. cc(2) .ge. 1d-5 .or. cc(2) .le. -1d-5) then
-!!$          write (*,*) 'The conservation equations are not verified at a = ', a, ', and k = ', k, '.'
-!!$          stop
-!!$       end if
+       do cross_i=1, 7
+          if (cc(cross_i) .ge. 1d-4  .or. cc(cross_i) .le. -1d-4) then
+             write (*,*) 'The conservation equations', cross_i, 'is not verified at a = ', a, ', and k = ', k, '.'
+             stop
+          end if
+       end do
     end if
     
 
