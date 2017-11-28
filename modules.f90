@@ -398,6 +398,7 @@
             last_tau0=CP%tau0
             if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
         end if
+
     else
         CP%tau0=last_tau0
     end if
