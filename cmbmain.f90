@@ -211,8 +211,8 @@
 
         !Modified by Clement Leloup
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
-        !OMP & PRIVATE(EV, q_ix)
-        !$OMP & PRIVATE(EV, q_ix, hubble, xgalileon, intvar)
+        !$OMP & PRIVATE(EV, q_ix)
+        !OMP & PRIVATE(EV, q_ix, hubble, xgalileon, intvar)
 
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
@@ -999,7 +999,7 @@
             dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
             dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
             if (CP%use_galileon) then
-               xgal = GetX(a, C_LOC(intvar), C_LOC(hubble), C_LOC(xgalileon))
+               xgal = GetX(a)
                cptr_to_dhdx = GetdHdX(a, hub, xgal)
                call C_F_POINTER(cptr_to_dhdx, dhdx, [2])
                dh = dhdx(1)

@@ -126,35 +126,21 @@
     implicit none
     real(dl) dtauda
     real(dl), intent(IN) :: a
-    real(dl) rhonu,grhoa2, a2, a4, h2, hbar2
+    real(dl) rhonu,grhoa2, a2
     integer nu_i
 
     !Modified by Clement Leloup
     type(C_PTR) :: cptr_to_handx
     real(kind=C_DOUBLE), pointer :: handx(:)
+    real(dl) h2, hbar2, a4
     real(kind=C_DOUBLE) :: grhogal_t
-    integer  OMP_GET_THREAD_NUM, nthread
-    type(C_PTR) :: cptr1, cptr2, cptr3
 
     a2=a**2
 
     !Modified by Clement Leloup
     if (CP%use_galileon .and. a .ge. 9.99999d-7) then
        a4=a2**2
-       cptr1 = C_LOC(intvar(1))
-       cptr2 = C_LOC(hubble(1))
-       cptr3 = C_LOC(xgalileon(1))
-       !print *, "dtauda before : a =", a
-
-       !Modified by Clement Leloup
-       !print *, "yo1", a
-       !print *, "brljbgrg", intvar(1)
-       cptr_to_handx = handxofa(a, cptr1, cptr2, cptr3)
-
-       !Modified by Clement Leloup
-       !print *, "yo2"
-       !print *, "dtauda after : a =", a
-
+       cptr_to_handx = handxofa(a)
        call C_F_POINTER(cptr_to_handx, handx, [2])
        hbar2=handx(1)**2
        h2=hbar2
@@ -1050,12 +1036,7 @@
             qnu=qnu/rhonu
             clxnu = clxnu/rhonu
             pinu=pinu/rhonu
-
-            !Modified by Clement Leloup
-            !print *, "MassiveNuVarsOut1 before"
             adotoa = 1/(a*dtauda(a))
-            !print *, "MassiveNuVarsOut1 after"
-
             rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
 
             call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
@@ -1296,7 +1277,7 @@
 
     !Modified by Clement Leloup
     real(kind=C_DOUBLE) dgrhogal_t, dgqgal_t, dgpigal_t, pigaldot
-    real(kind=C_DOUBLE) grhogal_t, gpresgal_t, xgal, hub, lightspeed
+    real(kind=C_DOUBLE) grhogal_t, gpresgal_t, xgal, hub
     real(dl) dphi, dphiprime, dphiprimeprime, dtauda
     real(dl) clxcdot, clxbdot, clxgdot, clxrdot, dotdeltaf
     real(dl) dh, dx
@@ -1317,9 +1298,6 @@
     real(dl) clxq, vq, diff_rhopi, octg, octgprime
     real(dl) sources(CTransScal%NumSources)
     real(dl) ISW
-
-!!$    !Modified by Clement Leloup
-!!$    print *, "start output"
 
     yprime = 0
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
@@ -1360,17 +1338,11 @@
     grhov_t=grhov*a**(-1-3*w_lam)
 
     !Modified by Clement Leloup
-    !adotoa=sqrt((grho+grhok)/3)
-    !print *, "output1 before"
-    !adotoa=1./(a*dtauda(a))
-    !print *, "output1 after"
-    !lightspeed = 2.99792458e8_dl
-    !hub = adotoa/CP%h0*lightspeed/1000
     grho=grhob_t+grhoc_t+grhor_t+grhog_t
     gpres=(grhog_t+grhor_t)/3
     if (CP%use_galileon) then
-       xgal = GetX(a, C_LOC(intvar(1)), C_LOC(hubble(1)), C_LOC(xgalileon(1)))
-       hub = a*GetH(a, C_LOC(intvar(1)), C_LOC(hubble(1)), C_LOC(xgalileon(1)))
+       xgal = GetX(a)
+       hub = a*GetH(a)
        cptr_to_dhdx = GetdHdX(a, hub, xgal)
        call C_F_POINTER(cptr_to_dhdx, dhdx, [2])
        dh = dhdx(1)
@@ -1406,9 +1378,9 @@
        dgq = dgq + vq*grhov_t*(1+w_lam)
     end if
 
-!    !Modified by Clement Leloup
-    adotoa=sqrt((grho+grhok)/3)
-!    adotoa=1./(a*dtauda(a))
+    !Modified by Clement Leloup
+    !adotoa=sqrt((grho+grhok)/3)
+    adotoa=1./(a*dtauda(a))
 
     if (EV%no_nu_multpoles) then
 
@@ -1657,12 +1629,7 @@
     else
         !  Use the tight-coupling approximation
         a =yt(1)
-
-        !Modified by Clement Leloup
-        !print *, "outputt1 before"
         adotoa = 1/(a*dtauda(a))
-        !print *, "outputt1 after"
-
         pigdot=32._dl/45._dl*k/opac(j)*(2._dl*adotoa*shear+ytprime(3))
         pig = 32._dl/45._dl*k/opac(j)*shear
         pol=0
@@ -1702,9 +1669,6 @@
         dte=0._dl
         dtb=0._dl
     end if
-
-!!$    !Modified by Clement Leloup
-!!$    print *, "stop output"
 
     end subroutine outputt
 
@@ -2175,10 +2139,9 @@
     real(kind=C_DOUBLE) dphiprimeprime
     real(dl) dphi, dphiprime, dgqgal_t, dgrhogal_t, dgpigal_t
     real(dl) grhogal_t, gpresgal_t, dotdeltaf, dotdeltaqf
-    real(dl) dtauda, dh, dx, xgal, hub, lightspeed
+    real(dl) dtauda, dh, dx, xgal, hub
     type(C_PTR) :: cptr_to_dhdx
     real(kind=C_DOUBLE), pointer :: dhdx(:)
-    integer  OMP_GET_THREAD_NUM
 
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
@@ -2189,9 +2152,6 @@
     real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
-
-!!$    !Modified by Clement Leloup
-!!$    print *, "start derivs"
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2221,25 +2181,9 @@
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
 
-    !Modified by Clement Leloup
-    !if (CP%flat) then
-    !   adotoa=1./(a*dtauda(a))
-    !   lightspeed = 2.99792458e8_dl
-    !   hub = adotoa/CP%h0*lightspeed/1000
-    !   !adotoa=sqrt(grho/3)
-    !    cothxor=1._dl/tau
-    !end if
-    !adotoa=1./(a*dtauda(a))
-
-!!$    print *, a, adotoa, OMP_GET_THREAD_NUM()
-
-    !lightspeed = 2.99792458e8_dl
-    !hub = adotoa/CP%h0*lightspeed/1000
-    !cothxor=1._dl/tau
     if (CP%use_galileon) then       
-       xgal = GetX(a, C_LOC(intvar(1)), C_LOC(hubble(1)), C_LOC(xgalileon(1)))
-       !print *, "a", a, "xgal :", xgal, OMP_GET_THREAD_NUM()
-       hub = a*GetH(a, C_LOC(intvar(1)), C_LOC(hubble(1)), C_LOC(xgalileon(1)))
+       xgal = GetX(a)
+       hub = a*GetH(a)
        cptr_to_dhdx = GetdHdX(a, hub, xgal)
        call C_F_POINTER(cptr_to_dhdx, dhdx, [2])
        dh = dhdx(1)
@@ -2297,8 +2241,6 @@
        !adotoa=sqrt(grho/3)
         cothxor=1._dl/tau
     else
-!    if (.not.CP%flat) then
-       !Modified by Clement Leloup
        !Careful, no change here in case of non flat universe, should change to adapted 1/(a*dtauda)
         adotoa=sqrt((grho+grhok)/3._dl)
         cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
@@ -2664,9 +2606,6 @@
         ayprime(ind)= k*(ay(ind-1) -a2*ay(ind2-1)) -(EV%lmaxnu_pert+1)*cothxor*ay(ind)
     end if
 
-!!$    !Modified by Clement Leloup
-!!$    print *, "stop derivs"
-
   end subroutine derivs
 
 
@@ -2689,7 +2628,7 @@
 
     !Modified by Clement Leloup
     real(kind=C_DOUBLE) grhogal_t, gpresgal_t
-    real(dl) dtauda, dh, dx, xgal, hub, lightspeed
+    real(dl) dtauda, dh, dx, xgal, hub
     type(C_PTR) :: cptr_to_dhdx
     real(kind=C_DOUBLE), pointer :: dhdx(:)
 
@@ -2736,16 +2675,11 @@
     grhog_t=grhog/a2
 
     !Modified by Clement Leloup
-    !adotoa=sqrt(grho/3._dl)
-    !print *, "derivsv1 before"
-    adotoa=1./(a*dtauda(a))
-    !print *, "derivsv1 after"
-    lightspeed = 2.99792458e8_dl
-    hub = adotoa/CP%h0*lightspeed/1000
     grho=grhob_t+grhoc_t+grhor_t+grhog_t
     gpres=(grhog_t+grhor_t)/3._dl
     if (CP%use_galileon) then
-       xgal = GetX(a, C_LOC(intvar(1)), C_LOC(hubble(1)), C_LOC(xgalileon(1)))
+       xgal = GetX(a)
+       hub = GetH(a)
        cptr_to_dhdx = GetdHdX(a, hub, xgal)
        call C_F_POINTER(cptr_to_dhdx, dhdx, [2])
        dh = dhdx(1)
@@ -2760,9 +2694,9 @@
        gpres=gpres+grhov_t*w_lam
     end if
 
-!    !Modified by Clement Leloup
-!    !adotoa=sqrt(grho/3._dl)
-!    adotoa=1./(a*dtauda(a))
+    !Modified by Clement Leloup
+    !adotoa=sqrt(grho/3._dl)
+    adotoa=1./(a*dtauda(a))
 
     adotdota=(adotoa*adotoa-gpres)/2
 
@@ -2896,7 +2830,7 @@
 
     !Modified by Clement Leloup
     real(kind=C_DOUBLE) grhogal_t
-    real(dl) dtauda, dh, dx, xgal, hub, lightspeed
+    real(dl) dtauda, dh, dx, xgal, hub
     type(C_PTR) :: cptr_to_dhdx
     real(kind=C_DOUBLE), pointer :: dhdx(:)
 
@@ -2925,18 +2859,10 @@
     grhog_t=grhog/a2
 
     !Modified by Clement Leloup
-    if (CP%flat) then
-        cothxor=1._dl/tau
-        !adotoa=sqrt(grho/3._dl)
-        !print *, "derivst1 before"
-        adotoa=1./(a*dtauda(a))
-        !print *, "derivst1 after"
-        lightspeed = 2.99792458e8_dl
-        hub = adotoa/CP%h0*lightspeed/1000
-    end if
     grho=grhob_t+grhoc_t+grhor_t+grhog_t
     if (CP%use_galileon) then
-       xgal = GetX(a, C_LOC(intvar(1)), C_LOC(hubble(1)), C_LOC(xgalileon(1)))
+       xgal = GetX(a)
+       hub = GetH(a)
        cptr_to_dhdx = GetdHdX(a, hub, xgal)
        call C_F_POINTER(cptr_to_dhdx, dhdx, [2])
        dh = dhdx(1)
@@ -2960,12 +2886,11 @@
     end if
 
     !Modified by Clement Leloup
-!    if (CP%flat) then
-!        cothxor=1._dl/tau
-!        !adotoa=sqrt(grho/3._dl)
-!        adotoa=1./(a*dtauda(a))
-!    else
-    if (.not.CP%flat) then
+    if (CP%flat) then
+        cothxor=1._dl/tau
+        !adotoa=sqrt(grho/3._dl)
+        adotoa=1./(a*dtauda(a))
+    else
         cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
         adotoa=sqrt((grho+grhok)/3._dl)
     end if

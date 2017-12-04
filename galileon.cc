@@ -72,22 +72,16 @@ using namespace std;
 enum solvmethod {NEVEU, BARREIRA};
 
 // Global vectors of the integration variable (a or z), h and x
-// std::vector<double> intvar;
-// std::vector<double> hubble;
-// std::vector<double> xgalileon;
-// std::vector<double> dhubble;
-// std::vector<double> dx;
-int hsize = 30000;
-double intvar[30000];
-double hubble[30000];
-double xgalileon[30000];
-double dhubble[30000];
-double dx[30000];
+std::vector<double> intvar;
+std::vector<double> hubble;
+std::vector<double> xgalileon;
+// int hsize = 30000;
+// double intvar[30000];
+// double hubble[30000];
+// double xgalileon[30000];
 // double* intvar = NULL;
 // double* hubble = NULL;
 // double* xgalileon = NULL;
-// double* dhubble = NULL;
-// double* dx = NULL;
 
 // Interpolation tools
 gsl_interp_accel* acc;
@@ -217,7 +211,7 @@ char** readParamsFile(const char* filename){
 
   Tested with Mathematica with c0 and y0 = 0.
  */
-inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3], double &dhub, double &dxgal) {
+inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3]) {
   double k1,k2,k3,k4,k5,k6;
   double alpha,gamma,beta,sigma,lambda,omega,denom;
   double dhdlna,dxdlna;
@@ -250,9 +244,6 @@ inline int calcPertOmC2C3C4C5CGC0(double a, const double y[3], double &dhub, dou
 
   dhdlna = (omega*gamma - lambda*beta)/denom;
   dxdlna = (alpha*lambda - sigma*gamma)/denom - xgal;
-
-  dhub = dhdlna/a;
-  dxgal = dxdlna/a;
 
   k1 = -6*c4*h*prod2*(dhdlna*xgal + h*dxdlna + prod/3.0) -2*c0 + c5*h2*prod3*(12*h*dxdlna + 15*dhdlna*xgal + 3*prod) + 2.0*cG*(dhdlna*prod+h2*dxdlna+h*prod);
   k2 = -0.5*c2 + 6*c3*h*prod - 27*c4*h2*prod2 + 30*c5*h3*prod3 + 3.0*cG*h2;
@@ -383,10 +374,10 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
 */
 int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
-  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-  //   printf("One of the global arrays is empty\n");
-  //   return 9;
-  // }
+  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return 9;
+  }
 
   int testPert;
   double h2, x1, x2, x3, a3;
@@ -407,8 +398,8 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
  
   double y[3] = { 1.0, 1.0, 0.0 };  //Inital value of integral
   double a = 1;
-  // int nstep = min(hubble.size(),xgalileon.size());
-  int nstep = hsize;
+  int nstep = min(hubble.size(),xgalileon.size());
+  // int nstep = hsize;
   double h = -1e-6; //Initial step guess
   double acurrtarg;
   int st;
@@ -425,7 +416,7 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
       return 8;
     }
 
-    testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y, dhubble[i], dx[i]);
+    testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y);
     if(testPert != 0){
       return 7;
     }
@@ -497,16 +488,16 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
 */
 void calcHubbleTracker(){
  
-  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-  //   printf("One of the global arrays is empty\n");
-  //   return ;
-  // }
+  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return ;
+  }
 
   bool useacoord = (coord == BARREIRA || coord == NEVEU);
   double op = (c2/2.0 - 6.0*c3 + 22.5*c4 - 21.0*c5 - 9*cG )/3.0; //Omega_phi
 
-  // int nstep = min(hubble.size(),xgalileon.size());
-  int nstep = hsize;
+  int nstep = min(hubble.size(),xgalileon.size());
+  // int nstep = hsize;
   for(int i = 0; i < nstep; ++i){
     double a2 = intvar[i]*intvar[i];
     hubble[i] = sqrt(0.5*(om/(a2*intvar[i])+orad/(a2*a2)-3*cG)+sqrt(op/9+3*cG+0.25*pow(3*cG-om/(a2*intvar[i])-orad/(a2*a2),2))); // Analytical solution for H
@@ -546,10 +537,10 @@ void calcHubbleTracker(){
 */
 int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
-  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-  //   printf("One of the global arrays is empty\n");
-  //   return 9;
-  // }
+  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return 9;
+  }
 
   const double Gyr = 3.1556926e16; //Conversion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Conversion factor from Mpc to km
@@ -580,8 +571,8 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
   sys.params = &params;
 
   double a = intvar[1];
-  // int nstep = intvar.size();
-  int nstep = hsize;
+  int nstep = intvar.size();
+  // int nstep = hsize;
   double h = 1e-6; //Initial step guess
   double acurrtarg;
   double prec_age = 1/(intvar[1]*cond[0]); // initial value of 1/(a*Hbar)
@@ -607,13 +598,13 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
     }
 
     if(params[0]){
-      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y, dhubble[i], dx[i]);
+      testPert = calcPertOmC2C3C4C5CGC0(intvar[i], y);
       if(testPert != 0){
 	fprintf(stderr, "Theoretical constraints not verified.\n");
 	return 7;
       }
     }
-    
+
     h2 = y[0]*y[0];
     x1 = intvar[i]*y[1];
     x2 = x1*x1;
@@ -680,10 +671,10 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
 
 int initCond(double &xi, double H[2], double ratio_rho, double age, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
-  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-  //   printf("One of the global arrays is empty\n");
-  //   return 9;
-  // }
+  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+    printf("One of the global arrays is empty\n");
+    return 9;
+  }
 
   const double Gyr = 3.1556926e16; //Convertion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Convertion factor from Mpc to km
@@ -759,9 +750,9 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   fflush(stdout);
 
   // Clear three global vectors
-  // intvar.clear();
-  // hubble.clear();
-  // xgalileon.clear();
+  intvar.clear();
+  hubble.clear();
+  xgalileon.clear();
 
   char** params = readParamsFile(infile);
 
@@ -823,22 +814,23 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     double apremin = 1e-7;
     double amin = 9.99999e-7;
     double amax = 1.;
-    // intvar.push_back(apremin);
+    intvar.push_back(apremin);
     // intvar = (double*)malloc((hsize+1)*sizeof(double));
-    intvar[0] = apremin;
+    // intvar[0] = apremin;
     // hubble = (double*)malloc(hsize*sizeof(double));
     // xgalileon = (double*)malloc(hsize*sizeof(double));
 
     // Fill the vector of a with a geometric sequence
-    double nb = hsize-2; // number of a points using q0
+    // double nb = hsize-2; // number of a points using q0
+    double nb = 29998; // number of a points using q0
     double q = pow(amax/amin, 1./nb);
     for(int i = 0; i<=nb; i++){
-      // intvar.push_back(amin*pow(q, i));
-      intvar[i+1] = amin*pow(q, i);
+      intvar.push_back(amin*pow(q, i));
+      // intvar[i+1] = amin*pow(q, i);
     }
 
-    // printf("Number of points : %i\n", intvar.size());
-    printf("Number of points : %i\n", hsize);
+    printf("Number of points : %i\n", intvar.size());
+    // printf("Number of points : %i\n", hsize);
 
     // Calculate initial conditions in H and ratio_rho
     double xi = 0;
@@ -875,8 +867,8 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
       xi = dotphi;
     }
 
-    // hubble.resize(intvar.size()-1, 999999);
-    // xgalileon.resize(intvar.size()-1, 999999);
+    hubble.resize(intvar.size()-1, 999999);
+    xgalileon.resize(intvar.size()-1, 999999);
 
     // Calculate initial conditions in x and fill hubble and x from then to now
     status = initCond(xi, H, ratio_rho, age, grhormass, nu_masses, nu_mass_eigenstates);
@@ -894,26 +886,22 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     // intvar = (double*)malloc(hsize*sizeof(double));
     // hubble = (double*)malloc(hsize*sizeof(double));
     // xgalileon = (double*)malloc(hsize*sizeof(double));    
-    // dhubble = (double*)malloc(hsize*sizeof(double));
-    // dx = (double*)malloc(hsize*sizeof(double));
 
     // Fill the vector of a with a geometric sequence
-    // double nb = 30000; // number of a points using q0
-    double nb = hsize-1; // number of a points using q0
+    double nb = 29999; // number of a points using q0
+    // double nb = hsize-1; // number of a points using q0
     double q = pow(amin/amax, 1./nb);
     for(int i = 0; i<=nb; i++){
-      // intvar.push_back(amax*pow(q, i));
-      intvar[i] = amax*pow(q, i);
+      intvar.push_back(amax*pow(q, i));
+      // intvar[i] = amax*pow(q, i);
       // printf("i : %d \t intvar : %f\n", i, intvar[i]);
     }
 
-    // printf("Number of points : %i\n", intvar.size());
-    printf("Number of points : %i\n", hsize);
+    printf("Number of points : %i\n", intvar.size());
+    // printf("Number of points : %i\n", hsize);
 
-    // hubble.resize(intvar.size(), 999999);
-    // xgalileon.resize(intvar.size(), 999999);
-    // dhubble.resize(intvar.size(), 999999);
-    // dx.resize(intvar.size(), 999999);
+    hubble.resize(intvar.size(), 999999);
+    xgalileon.resize(intvar.size(), 999999);
 
     // Integrate and fill hubble and x both when tracker and not tracker
     if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
@@ -929,15 +917,13 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
 
   }
 
-  // if(status != 0){
-  //   // hubble.clear();
-  //   // xgalileon.clear();
-  //   free(intvar);
-  //   free(hubble);
-  //   free(xgalileon);
-  //   free(dhubble);
-  //   free(dx);
-  // }
+  if(status != 0){
+    hubble.clear();
+    xgalileon.clear();
+    // free(intvar);
+    // free(hubble);
+    // free(xgalileon);
+  }
 
   // FILE* f = fopen(outfile, "w");
   // for(int i = 0; i<intvar.size()-1; i++){
@@ -960,33 +946,33 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   //   fprintf(f, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", intvar[i+1], hubble[i], xgalileon[i], hubble_LCDM, ratio, weff);
   // }
 
-  // double hubble_interp[hubble.size()];
-  // double x_interp[xgalileon.size()];
-  // double intvar_interp[hubble.size()];
+  double hubble_interp[hubble.size()];
+  double x_interp[xgalileon.size()];
+  double intvar_interp[hubble.size()];
   
-  // if(coord == BARREIRA){
-  //   std::copy(hubble.begin(), hubble.end(), hubble_interp);
-  //   std::copy(xgalileon.begin(), xgalileon.end(), x_interp);
-  //   std::copy(intvar.begin()+1, intvar.end(), intvar_interp);
-  // } else if(coord == NEVEU){
-  //   std::copy(hubble.rbegin(), hubble.rend(), hubble_interp);
-  //   std::copy(xgalileon.rbegin(), xgalileon.rend(), x_interp);
-  //   std::copy(intvar.rbegin(), intvar.rend(), intvar_interp);
-  // }
-  
-  // spline_h = gsl_spline_alloc(gsl_interp_cspline, hubble.size());
-  // spline_x = gsl_spline_alloc(gsl_interp_cspline, xgalileon.size());  
-  // gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
-  // gsl_spline_init(spline_x, intvar_interp, x_interp, xgalileon.size());
-
-  double intvar_interp[hsize];
   if(coord == BARREIRA){
-    for(int i = 0; i<hsize; i++){intvar_interp[i]=intvar[i+1];}
-    spline_h = gsl_spline_alloc(gsl_interp_cspline, sizeof(hubble)/sizeof(double));
-    spline_x = gsl_spline_alloc(gsl_interp_cspline, sizeof(xgalileon)/sizeof(double));
-    gsl_spline_init(spline_h, intvar_interp, hubble, sizeof(hubble)/sizeof(double));
-    gsl_spline_init(spline_x, intvar_interp, xgalileon, sizeof(xgalileon)/sizeof(double));
+    std::copy(hubble.begin(), hubble.end(), hubble_interp);
+    std::copy(xgalileon.begin(), xgalileon.end(), x_interp);
+    std::copy(intvar.begin()+1, intvar.end(), intvar_interp);
+  } else if(coord == NEVEU){
+    std::copy(hubble.rbegin(), hubble.rend(), hubble_interp);
+    std::copy(xgalileon.rbegin(), xgalileon.rend(), x_interp);
+    std::copy(intvar.rbegin(), intvar.rend(), intvar_interp);
   }
+  
+  spline_h = gsl_spline_alloc(gsl_interp_cspline, hubble.size());
+  spline_x = gsl_spline_alloc(gsl_interp_cspline, xgalileon.size());  
+  gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
+  gsl_spline_init(spline_x, intvar_interp, x_interp, xgalileon.size());
+
+  // double intvar_interp[hsize];
+  // if(coord == BARREIRA){
+  //   for(int i = 0; i<hsize; i++){intvar_interp[i]=intvar[i+1];}
+  //   spline_h = gsl_spline_alloc(gsl_interp_cspline, sizeof(hubble)/sizeof(double));
+  //   spline_x = gsl_spline_alloc(gsl_interp_cspline, sizeof(xgalileon)/sizeof(double));
+  //   gsl_spline_init(spline_h, intvar_interp, hubble, sizeof(hubble)/sizeof(double));
+  //   gsl_spline_init(spline_x, intvar_interp, xgalileon, sizeof(xgalileon)/sizeof(double));
+  // }
 
   // spline_h = gsl_spline_alloc(gsl_interp_cspline, sizeof(hubble)/sizeof(double));
   // spline_x = gsl_spline_alloc(gsl_interp_cspline, sizeof(xgalileon)/sizeof(double));  
@@ -1073,14 +1059,11 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
 // }
 
 // Interpolate the values of x and h between the stored array points
-// extern "C" double* handxofa_(double* point){
-extern "C" double* handxofa_(double* point, double* a, double* h, double* x){
-  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-  //   printf("One of the global arrays is empty\n");
-  //   exit(EXIT_FAILURE);
-  // }
-
-  // printf("wesh1\n");
+extern "C" double* handxofa_(double* point){
+  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+    printf("One of the global arrays is empty\n");
+    exit(EXIT_FAILURE);
+  }
 
   if((*point) < 0.0 || (*point) > 1.1){
     printf("Forbidden value of a : %.12f\n", (*point));
@@ -1093,8 +1076,6 @@ extern "C" double* handxofa_(double* point, double* a, double* h, double* x){
 
   double hxbis[2];
 
-  // printf("wesh2\n");
-
   // Spline interpolation
   if(coord == BARREIRA){
     hx[0] = gsl_spline_eval(spline_h, *point, acc);
@@ -1105,111 +1086,32 @@ extern "C" double* handxofa_(double* point, double* a, double* h, double* x){
       if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time (a = %f, h_LCDM = %f and h_gal = %f)\n", (*point), hubble_LCDM, hx[0]);
     }
   } else if(coord == NEVEU){
-    // hx[0] = gsl_spline_eval(spline_h, *point, acc);
-    // hx[1] = gsl_spline_eval(spline_x, *point, acc);
+    hx[0] = gsl_spline_eval(spline_h, *point, acc);
+    hx[1] = gsl_spline_eval(spline_x, *point, acc);
+    // hx[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
+    // hx[1] = (xgalileon[i+1] - xgalileon[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + xgalileon[i];
 
-    // printf("wesh3\n");
-
-    double q = pow(9.99999e-7, 1.0/29999.0);
-    double alpha = (log(*point) - log(intvar[0]))/log(q); // Solving amax*q^alpha = a
-    // double alpha = (log(*point) - log(a[0]))/log(q); // Solving amax*q^alpha = a
-    int i = floor(alpha)+1; // i is integer part of alpha, so that a[i] <= a < a[i+1]
-    double x1 = intvar[i];
-    double x2 = intvar[i+1];
-    double ah = (-2.0/(x1-x2)*hubble[i] + 2.0/(x1-x2)*hubble[i+1] + dhubble[i] + dhubble[i+1])/((x1-x2)*(x1-x2));
-    double bh = (3.0*(x1+x2)/(x1-x2)*hubble[i] - 3.0*(x1+x2)/(x1-x2)*hubble[i+1] - (x1+2*x2)*dhubble[i] - (2*x1+x2)*dhubble[i+1])/((x1-x2)*(x1-x2));
-    double ch = (-6.0*x1*x2/(x1-x2)*hubble[i] + 6.0*x1*x2/(x1-x2)*hubble[i+1] + (x2*x2+2*x1*x2)*dhubble[i] + (x1*x1 + 2*x1*x2)*dhubble[i+1])/((x1-x2)*(x1-x2));
-    double dh = ((3.0*x1*x2*x2-x2*x2*x2)/(x1-x2)*hubble[i] + (x1*x1*x1 - 3*x1*x1*x2)/(x1-x2)*hubble[i+1] - x1*x2*x2*dhubble[i] - x1*x1*x2*dhubble[i+1])/((x1-x2)*(x1-x2));
-
-    double ax = (-2.0/(x1-x2)*xgalileon[i] + 2.0/(x1-x2)*xgalileon[i+1] + dx[i] + dx[i+1])/((x1-x2)*(x1-x2));
-    double bx = (3.0*(x1+x2)/(x1-x2)*xgalileon[i] - 3.0*(x1+x2)/(x1-x2)*xgalileon[i+1] - (x1+2*x2)*dx[i] - (2*x1+x2)*dx[i+1])/((x1-x2)*(x1-x2));
-    double cx = (-6.0*x1*x2/(x1-x2)*xgalileon[i] + 6.0*x1*x2/(x1-x2)*xgalileon[i+1] + (x2*x2+2*x1*x2)*dx[i] + (x1*x1+2*x1*x2)*dx[i+1])/((x1-x2)*(x1-x2));
-    double deltax = ((3.0*x1*x2*x2-x2*x2*x2)/(x1-x2)*xgalileon[i] + (x1*x1*x1 - 3*x1*x1*x2)/(x1-x2)*xgalileon[i+1] - x1*x2*x2*dx[i] - x1*x1*x2*dx[i+1])/((x1-x2)*(x1-x2));
-    // hx[0] = ah*(*point)*(*point)*(*point) + bh*(*point)*(*point) + ch*(*point) + dh;
-    // hx[1] = ax*(*point)*(*point)*(*point) + bx*(*point)*(*point) + cx*(*point) + deltax;
-    hx[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
-    hx[1] = (xgalileon[i+1] - xgalileon[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + xgalileon[i];
-
-    // hxbis[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
-    // hxbis[1] = (xgalileon[i+1] - xgalileon[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + xgalileon[i];
-
-    // printf("a : %.12f - %.12f\t%.12f\t%.12f\t%.12f\n", (*point), hx[0], hxbis[0], hx[1], hxbis[1]);
-
-    // printf("wesh4 \t %d \t %f \t %f \t %f \t %f\n", i, (*point), a[0], q, alpha);
-
-    // hx[0] = (h[i+1] - h[i])/(a[i+1]-a[i])*((*point) - a[i]) + h[i];
-    // hx[1] = (x[i+1] - x[i])/(a[i+1]-a[i])*((*point) - a[i]) + x[i];
   }
-
-  // printf("C1 : %.12f\n", hx[1]);
-
-  double alpha,gamma,beta,sigma,lambda,omega,denom;
-  double dhdlna,dxdlna;
-
-  // system from lna in z : 
-  // y[0](lna) -> y[0](z)
-  // y[1](lna) -> -(1+z)*y[1](z)
-  // f[0](lna) -> -(1+z)*f[0](z)
-  // f[1](lna) -> (1+z)^2*f[1](z)+(1+z)*y[1](z)
-
-  // double xgal = (*point)*hx[1];
-  // double prod = xgal*hx[0];
-  // double prod2 = prod*prod;
-  // double prod3 = prod*prod2;
-  // double prod4 = prod*prod3;
-  // double prod5 = prod*prod4;
-  // double h = hx[0];
-  // double h2 = h*h;
-  // double h3 = h*h2;
-  // double h4 = h2*h2;
-  // double a4 = (*point)*(*point)*(*point)*(*point);
-
-  // // The equations : 
-  // alpha = c2/6.0*prod - 3*c3*h*prod2 + 15*c4*h2*prod3 - 17.5*c5*h3*prod4 - 3.0*cG*h2*prod;
-  // gamma = c2/3.0*h*prod - c3*h2*prod2 + 2.5*c5*h4*prod4 - 2.0*cG*h3*prod;
-  // beta = -2*c3*h3*prod + c2/6.0*h2 + 9*c4*h4*prod2 - 10*c5*h4*h*prod3 - cG*h4;
-  // sigma = 2.0*h + 2.0*c3*prod3 - 15.0*c4*h*prod4 + 21.0*c5*h2*prod5 + 6.0*cG*h*prod2;
-  // lambda = 3.0*h2 + orad/(a4) - 2.0*c3*h*prod3 + c2/2.0*prod2 + 7.5*c4*h2*prod4 - 9.0*c5*h3*prod5 - cG*h2*prod2;
-  // omega = 2*c3*h2*prod2 - 12*c4*h3*prod3 + 15*c5*h4*prod4 + 4.0*cG*h3*prod;
-  // denom = sigma*beta - alpha*omega;
-
-  // dhdlna = (omega*gamma - lambda*beta)/denom;
-  // dxdlna = (alpha*lambda - sigma*gamma)/denom - xgal;
-
-  // printf("number 1 - a : %.16f\t h : %.16f\t x : %.16f\t dh : %.16f\t dx : %.16f\n", (*point), hx[0], (*point)*hx[1], dhdlna, dxdlna);
-  // fflush(stdout);
-
-  // printf("wesh5\n");
 
   return hx;
 
 }
 
 // Function that returns x(a)
-extern "C" double GetX_(double* point, double* a, double* h, double* x){
+extern "C" double GetX_(double* point){
   
-  // printf("GetX before : a = %.12f\n", (*point));
-  double* hx = (*point >= 9.99999e-7) ? handxofa_(point, a, h, x) : 0;
-  // printf("GetX after : a = %.12f\n", (*point));
-
+  double* hx = (*point >= 9.99999e-7) ? handxofa_(point) : 0;
   double xgal = (*point >= 9.99999e-7) ? (*point)*(*(hx+1)) : 0; // here take xgal as a function of ln(a)
-
-  // printf("C2 : %.16f\t%.16f\n", xgal, (*point));
 
   return xgal;
 
 }
 
 // Function that returns hbar(a)
-extern "C" double GetH_(double* point, double* a, double* h, double* x){
+extern "C" double GetH_(double* point){
   
-  // printf("GetX before : a = %.12f\n", (*point));
-  double* hx = (*point >= 9.99999e-7) ? handxofa_(point, a, h, x) : 0;
-  // printf("GetX after : a = %.12f\n", (*point));
-
+  double* hx = (*point >= 9.99999e-7) ? handxofa_(point) : 0;
   double hbar = (*point >= 9.99999e-7) ? (*hx) : 0; // here take xgal as a function of ln(a)
-
-  // printf("C2 : %.16f\t%.16f\n", xgal, (*point));
 
   return hbar;
 
@@ -1229,7 +1131,6 @@ extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb){
   double xgal4 = xgal2*xgal2;
   double xgal5 = xgal3*xgal2;
   double h = (*hcamb)/(*point); // here H=dlna/dt
-  // double h = (*hcamb); // here H=dlna/dt
   double h2 = h*h;
   double h3 = h2*h;
   double h4 = h2*h2;
@@ -1248,9 +1149,6 @@ extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb){
 
   dhdx[0] = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega); // dh/dlna
   dhdx[1] = -(*xcamb)+(alpha*lambda-sigma*gamma)/(sigma*beta-alpha*omega); // dx/dlna
-
-  // printf("number 2 - a : %.16f\t h : %.16f\t x : %.16f\t dh : %.16f\t dx : %.16f\n", (*point), h, (*xcamb), dhdx[0], dhdx[1]);
-  // fflush(stdout);
 
   return dhdx;
 
@@ -1711,19 +1609,17 @@ extern "C" void freegal_(){
   gsl_spline_free(spline_x);
   gsl_interp_accel_free(acc);
 
-  // printf("before -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
+  printf("before -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
 
-  // intvar = std::vector<double>();
-  // hubble = std::vector<double>();
-  // xgalileon = std::vector<double>();
+  intvar = std::vector<double>();
+  hubble = std::vector<double>();
+  xgalileon = std::vector<double>();
 
-  //free(intvar);
+  // free(intvar);
   // free(hubble);
   // free(xgalileon);
-  // free(dhubble);
-  // free(dx);
 
-  // printf("after -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
+  printf("after -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
 
 }
 

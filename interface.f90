@@ -2,40 +2,33 @@ module interface
   !use, intrinsic :: iso_c_binding
   use ISO_C_BINDING
   implicit none
-
-  real(kind=C_DOUBLE), BIND(C) :: intvar(30000), hubble(30000), xgalileon(30000)
+  
+  !real(kind=C_DOUBLE), BIND(C) :: intvar(30000), hubble(30000), xgalileon(30000)
 
   interface
-!!$     subroutine arrays(infile, outfile, omegar) bind(C, name='arrays_')
-
      function arrays(infile, omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin, grhormass, nu_masses, nu_mass_eigenstates) bind(C, name='arrays_')
        import C_CHAR, C_DOUBLE, C_INT, C_PTR ! Make iso c binding visible here
-!!$       character(kind=C_CHAR), dimension(*) :: infile, outfile
        character(kind=C_CHAR), dimension(*) :: infile
        real(kind=C_DOUBLE) :: omegar, omegam, H0in, c2in, c3in, c4in, c5in, cGin
        integer(C_INT) :: nu_mass_eigenstates
        type(C_PTR), value :: grhormass, nu_masses
-!!$       real(C_DOUBLE), intent(in), dimension(*) :: grhormass, nu_masses
        integer :: arrays
     end function arrays
 
-    function handxofa(point, a, h, x) bind(C, name='handxofa_')
+    function handxofa(point) bind(C, name='handxofa_')
       import C_PTR, C_DOUBLE, C_PTR
       real(kind=C_DOUBLE) :: point
       type(C_PTR) :: handxofa
-      type(C_PTR) :: a, h, x
     end function handxofa
 
-    function GetX(point, a, h, x) bind(C, name='GetX_')
+    function GetX(point) bind(C, name='GetX_')
       import C_DOUBLE, C_PTR
       real(kind=C_DOUBLE) :: point, GetX
-      type(C_PTR) :: a, h, x
     end function GetX
 
-    function GetH(point, a, h, x) bind(C, name='GetH_')
+    function GetH(point) bind(C, name='GetH_')
       import C_DOUBLE, C_PTR
       real(kind=C_DOUBLE) :: point, GetH
-      type(C_PTR) :: a, h, x
     end function GetH
 
     function GetdHdX(point, hcamb, xcamb) bind(C, name='GetdHdX_')
