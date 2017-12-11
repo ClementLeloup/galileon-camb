@@ -75,13 +75,6 @@ enum solvmethod {NEVEU, BARREIRA};
 std::vector<double> intvar;
 std::vector<double> hubble;
 std::vector<double> xgalileon;
-// int hsize = 30000;
-// double intvar[30000];
-// double hubble[30000];
-// double xgalileon[30000];
-// double* intvar = NULL;
-// double* hubble = NULL;
-// double* xgalileon = NULL;
 
 // Interpolation tools
 gsl_interp_accel* acc;
@@ -104,10 +97,10 @@ double h0 = 0;
 double lightspeed = 2.99792458e8;
 double Mp = sqrt(1/(8.*M_PI*6.6738e-11));
 
-// // External functions from fortran
-// extern"C" void massivenu_mp_nu_rho_(double* am, double* rhonu);
-// extern"C" void massivenu_mp_nu_background_(double* am, double* rhonu, double* pnu);
-// extern"C" void massivenu_mp_nurhopres_(double* am, double* rhonu, double* pnu);
+// External functions from fortran
+extern"C" void massivenu_mp_nu_rho_(double* am, double* rhonu);
+extern"C" void massivenu_mp_nu_background_(double* am, double* rhonu, double* pnu);
+extern"C" void massivenu_mp_nurhopres_(double* am, double* rhonu, double* pnu);
 
 // Return absolute max of vector
 double maxVec(std::vector<double> vec){
@@ -328,7 +321,7 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
       double rhonu = 0;
       double pnu = 0;
       double am = a*nu_masses[i];
-      // massivenu_mp_nu_background_(&am, &rhonu, &pnu);
+      massivenu_mp_nu_background_(&am, &rhonu, &pnu);
       lambda += grhormass[i]*pnu/(a2*a2*h0*h0);
       // printf("i : %d \t a : %.16f \t am : %.16f \t rhonu : %.16f \t lambda_numass : %.16f\n", i, a, am, rhonu, grhormass[i]*pnu/(a2*a2*h0*h0));
     }
@@ -399,7 +392,6 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
   double y[3] = { 1.0, 1.0, 0.0 };  //Inital value of integral
   double a = 1;
   int nstep = min(hubble.size(),xgalileon.size());
-  // int nstep = hsize;
   double h = -1e-6; //Initial step guess
   double acurrtarg;
   int st;
@@ -438,7 +430,7 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
     	double rhonu = 0;
 	double pnu = 0;
     	double am = intvar[i]*nu_masses[j];
-    	// massivenu_mp_nu_background_(&am, &rhonu, &pnu);
+    	massivenu_mp_nu_background_(&am, &rhonu, &pnu);
     	OmegaM -= grhormass[j]*rhonu/(a3*intvar[i]*3.*h2*pow(h0, 2));
       }
     }
@@ -497,7 +489,6 @@ void calcHubbleTracker(){
   double op = (c2/2.0 - 6.0*c3 + 22.5*c4 - 21.0*c5 - 9*cG )/3.0; //Omega_phi
 
   int nstep = min(hubble.size(),xgalileon.size());
-  // int nstep = hsize;
   for(int i = 0; i < nstep; ++i){
     double a2 = intvar[i]*intvar[i];
     hubble[i] = sqrt(0.5*(om/(a2*intvar[i])+orad/(a2*a2)-3*cG)+sqrt(op/9+3*cG+0.25*pow(3*cG-om/(a2*intvar[i])-orad/(a2*a2),2))); // Analytical solution for H
@@ -572,7 +563,6 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
 
   double a = intvar[1];
   int nstep = intvar.size();
-  // int nstep = hsize;
   double h = 1e-6; //Initial step guess
   double acurrtarg;
   double prec_age = 1/(intvar[1]*cond[0]); // initial value of 1/(a*Hbar)
@@ -620,7 +610,7 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
       for(int j=0; j<(*nu_mass_eigenstates); j++){
     	double rhonu = 0;
     	double am = intvar[i]*nu_masses[j];
-    	// massivenu_mp_nu_rho_(&am, &rhonu);
+    	massivenu_mp_nu_rho_(&am, &rhonu);
     	OmegaM -= grhormass[j]*rhonu/(a3*intvar[i]*3.*h2*pow(h0, 2));
       }
     }
@@ -679,53 +669,6 @@ int initCond(double &xi, double H[2], double ratio_rho, double age, double* grho
   const double Gyr = 3.1556926e16; //Convertion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Convertion factor from Mpc to km
   int status = 0;
-  // double coeff[6]; //array of coefficients of the polynomial
-  // coeff[0] = -3*ratio_rho*om*pow(H[1], 2)/pow(intvar[1], 3); coeff[1] = 0; coeff[2] = c2/2*pow(H[1], 2)-9*cG*pow(H[1], 4);
-  // coeff[3] = -6*c3*pow(H[1], 4); coeff[4] = 45/2*c4*pow(H[1], 6); coeff[5] = -21*c5*pow(H[1], 8);
-
-  // size_t n = sizeof(coeff)/sizeof(double);
-  // double cond[4]; // initial conditions
-  // cond[0] = H[1]; cond[2] = 0; cond[3] = Mpc/Gyr*(1/H[1]-pow(intvar[1], 2)/2*(1/(intvar[0]*H[0])-1/(intvar[1]*H[1]))/(intvar[0]-intvar[1])); // Initial value of the age of the Universe, extrapolating linearly the integral
-
-  // AgeofU ini_vec_age = AgeofU(0, 1000);
-  // std::vector<AgeofU> aou(5, ini_vec_age);
-
-  // // Polynomial
-  // gsl_poly_complex_workspace* w = gsl_poly_complex_workspace_alloc(n);
-  // double z[2*(n-1)]; // Array of complex numbers ordered like {Re[0],Im[0],Re[1],Im[1],...}
-
-  // status = gsl_poly_complex_solve(coeff, n, w, z); // Solve coeff[0]+coeff[1]*x+...+coeff[5]*x^5=0 and store sol in z
-
-  // int nrealsol = 0; // Number of real solutions
-
-  // for(int j = 0; j<n-1; j++){
-  //   if(z[2*j+1]==0){
-  //     cond[1] = z[2*j]/intvar[1]; // Initial condition for d_phi/da
-  //     aou[j].i = j;
-  //     int status2 = ageOfUniverse(aou[j].a, cond);
-  //     std::cout << aou[j].a << endl;
-  //     aou[j].a -= age;
-  //     if(status2 != 0) return status2;
-  //   }
-  // }
-  
-  // for(int j = 0; j<n-1; j++){
-  //   if(aou[j].a != 1000){
-  //     nrealsol++;
-  //   }
-  // }
-
-  // sort(aou.begin(), aou.end(), less_than_key()); // Sort by comparing the calculated age of universe to the one provided
-
-  // for(int j = 0; j<n-2; j++){
-  //   aou[j].a += age;
-  // }
-
-  // xi = z[2*(aou[0].i)];
-  // if(nrealsol > 1){
-  //   cond[1] = xi/intvar[1];
-  //   ageOfUniverse(aou[0].a, cond);
-  // }
 
   double computed_age = 0;
   double cond[4]; // initial conditions
@@ -793,7 +736,7 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     double rhonu = 0;
     if((*nu_mass_eigenstates)>0){
       for(int i = 0; i<(*nu_mass_eigenstates); i++){
-	// massivenu_mp_nu_rho_(&(nu_masses[i]), &rhonu);
+	massivenu_mp_nu_rho_(&(nu_masses[i]), &rhonu);
 	c5 += rhonu*grhormass[i]/(7.*grhom);
 	// printf("Omeganu of mass eigenstate %d = %.16f\n", i, rhonu*grhormass[i]*0.726*0.726*94.07/grhom);
       }
@@ -803,6 +746,7 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   }
 
   printf("OmegaM0 = %f\nOmegaR0 = %.18f\nc0 = %f\nc2 = %f\nc3 = %f\nc4 = %f\nc5 = %f\ncG = %f\nh0 = %f Mpc-1\n", om, orad, c0, c2, c3, c4, c5, cG, h0);
+  fflush(stdout);
 
   // The status of the integration, 0 if everything ok
   int status = 0;
@@ -815,22 +759,15 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     double amin = 9.99999e-7;
     double amax = 1.;
     intvar.push_back(apremin);
-    // intvar = (double*)malloc((hsize+1)*sizeof(double));
-    // intvar[0] = apremin;
-    // hubble = (double*)malloc(hsize*sizeof(double));
-    // xgalileon = (double*)malloc(hsize*sizeof(double));
 
     // Fill the vector of a with a geometric sequence
-    // double nb = hsize-2; // number of a points using q0
     double nb = 29998; // number of a points using q0
     double q = pow(amax/amin, 1./nb);
     for(int i = 0; i<=nb; i++){
       intvar.push_back(amin*pow(q, i));
-      // intvar[i+1] = amin*pow(q, i);
     }
 
     printf("Number of points : %i\n", intvar.size());
-    // printf("Number of points : %i\n", hsize);
 
     // Calculate initial conditions in H and ratio_rho
     double xi = 0;
@@ -845,13 +782,13 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     if((*nu_mass_eigenstates)>0){
       for(int i = 0; i<(*nu_mass_eigenstates); i++){ // apremin
 	double am = apremin*nu_masses[i];
-	// massivenu_mp_nu_rho_(&am, &rhonu_premin);
+	massivenu_mp_nu_rho_(&am, &rhonu_premin);
 	omeganu_premin += rhonu_premin*grhormass[i]/grhom;
 	// omeganu_premin += nuRho(apremin*nu_masses[i])*grhormass[i]/grhom;
       }
       for(int i = 0; i<(*nu_mass_eigenstates); i++){ // amin
 	double am = amin*nu_masses[i];
-	// massivenu_mp_nu_rho_(&am, &rhonu_premin);
+	massivenu_mp_nu_rho_(&am, &rhonu_premin);
 	omeganu_min += rhonu_min*grhormass[i]/grhom;
 	// omeganu_min += nuRho(amin*nu_masses[i])*grhormass[i]/grhom;
       }
@@ -879,26 +816,17 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     printf("mode : acoord\n");
 
     // Where to put initial condition
-    // double apremin = 1e-7;
     double amin = 9.99999e-7;
     double amax = 1.;
-    // intvar.push_back(apremin);
-    // intvar = (double*)malloc(hsize*sizeof(double));
-    // hubble = (double*)malloc(hsize*sizeof(double));
-    // xgalileon = (double*)malloc(hsize*sizeof(double));    
 
     // Fill the vector of a with a geometric sequence
     double nb = 29999; // number of a points using q0
-    // double nb = hsize-1; // number of a points using q0
     double q = pow(amin/amax, 1./nb);
     for(int i = 0; i<=nb; i++){
       intvar.push_back(amax*pow(q, i));
-      // intvar[i] = amax*pow(q, i);
-      // printf("i : %d \t intvar : %f\n", i, intvar[i]);
     }
 
     printf("Number of points : %i\n", intvar.size());
-    // printf("Number of points : %i\n", hsize);
 
     hubble.resize(intvar.size(), 999999);
     xgalileon.resize(intvar.size(), 999999);
@@ -920,9 +848,6 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   if(status != 0){
     hubble.clear();
     xgalileon.clear();
-    // free(intvar);
-    // free(hubble);
-    // free(xgalileon);
   }
 
   // FILE* f = fopen(outfile, "w");
@@ -965,143 +890,24 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
   gsl_spline_init(spline_x, intvar_interp, x_interp, xgalileon.size());
 
-  // double intvar_interp[hsize];
-  // if(coord == BARREIRA){
-  //   for(int i = 0; i<hsize; i++){intvar_interp[i]=intvar[i+1];}
-  //   spline_h = gsl_spline_alloc(gsl_interp_cspline, sizeof(hubble)/sizeof(double));
-  //   spline_x = gsl_spline_alloc(gsl_interp_cspline, sizeof(xgalileon)/sizeof(double));
-  //   gsl_spline_init(spline_h, intvar_interp, hubble, sizeof(hubble)/sizeof(double));
-  //   gsl_spline_init(spline_x, intvar_interp, xgalileon, sizeof(xgalileon)/sizeof(double));
-  // }
-
-  // spline_h = gsl_spline_alloc(gsl_interp_cspline, sizeof(hubble)/sizeof(double));
-  // spline_x = gsl_spline_alloc(gsl_interp_cspline, sizeof(xgalileon)/sizeof(double));  
-  // gsl_spline_init(spline_h, intvar_interp, hubble, sizeof(hubble)/sizeof(double));
-  // gsl_spline_init(spline_x, intvar_interp, xgalileon, sizeof(xgalileon)/sizeof(double)); 
-
   return status;
   
 }
 
-// // Interpolate the values of x and h between the stored array points
-// extern "C" double* handxofa_(double* point){
-//   if(intvar.size() == 0 || hubble.size() == 0 || x.size() == 0){
-//     printf("One of the global arrays is empty\n");
-//     exit(EXIT_FAILURE);
-//   }
+// Function that returns x(a)
+extern "C" double GetX_(double* point){
 
-//   if((*point) < 0.0 || (*point) > 1.1){
-//     printf("Forbidden value of a : %.12f\n", (*point));
-//     exit(EXIT_FAILURE);
-//   }
-
-//   static double hx[2];
-
-//   // Spline interpolation
-//   if(coord == BARREIRA){
-//     hx[0] = gsl_spline_eval(spline_h, *point, acc);
-//     hx[1] = gsl_spline_eval(spline_x, *point, acc);
-//     if(*point < 3e-6){
-//       double a3 = (*point)*(*point)*(*point);
-//       double hubble_LCDM = sqrt(om/a3+orad/(a3*(*point))+(1-om-orad));
-//       if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time (a = %f, h_LCDM = %f and h_gal = %f)\n", (*point), hubble_LCDM, hx[0]);
-//     }
-//   } else if(coord == NEVEU){
-//     hx[0] = gsl_spline_eval(spline_h, *point, acc);
-//     hx[1] = gsl_spline_eval(spline_x, *point, acc);
-//     // double q = pow(9.99999e-7, 1.0/30000.0);
-//     // double alpha = (log(*point) - log(intvar[0]))/log(q); // Solving amax*q^alpha = a
-//     // double i = floor(alpha)+1; // i is integer part of alpha, so that a[i] <= a < a[i+1]
-//     // hx[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
-//     // hx[1] = (x[i+1] - x[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + x[i];
-//   }
-
-//   // printf("C1 : %.12f\n", hx[1]);
-
-//   double alpha,gamma,beta,sigma,lambda,omega,denom;
-//   double dhdlna,dxdlna;
-
-//   // system from lna in z : 
-//   // y[0](lna) -> y[0](z)
-//   // y[1](lna) -> -(1+z)*y[1](z)
-//   // f[0](lna) -> -(1+z)*f[0](z)
-//   // f[1](lna) -> (1+z)^2*f[1](z)+(1+z)*y[1](z)
-
-//   double xgal = (*point)*hx[1];
-//   double prod = xgal*hx[0];
-//   double prod2 = prod*prod;
-//   double prod3 = prod*prod2;
-//   double prod4 = prod*prod3;
-//   double prod5 = prod*prod4;
-//   double h = hx[0];
-//   double h2 = h*h;
-//   double h3 = h*h2;
-//   double h4 = h2*h2;
-//   double a4 = (*point)*(*point)*(*point)*(*point);
-
-//   // The equations : 
-//   alpha = c2/6.0*prod - 3*c3*h*prod2 + 15*c4*h2*prod3 - 17.5*c5*h3*prod4 - 3.0*cG*h2*prod;
-//   gamma = c2/3.0*h*prod - c3*h2*prod2 + 2.5*c5*h4*prod4 - 2.0*cG*h3*prod;
-//   beta = -2*c3*h3*prod + c2/6.0*h2 + 9*c4*h4*prod2 - 10*c5*h4*h*prod3 - cG*h4;
-//   sigma = 2.0*h + 2.0*c3*prod3 - 15.0*c4*h*prod4 + 21.0*c5*h2*prod5 + 6.0*cG*h*prod2;
-//   lambda = 3.0*h2 + orad/(a4) - 2.0*c3*h*prod3 + c2/2.0*prod2 + 7.5*c4*h2*prod4 - 9.0*c5*h3*prod5 - cG*h2*prod2;
-//   omega = 2*c3*h2*prod2 - 12*c4*h3*prod3 + 15*c5*h4*prod4 + 4.0*cG*h3*prod;
-//   denom = sigma*beta - alpha*omega;
-
-//   dhdlna = (omega*gamma - lambda*beta)/denom;
-//   dxdlna = (alpha*lambda - sigma*gamma)/denom - xgal;
-
-//   // printf("number 1 - a : %.16f\t h : %.16f\t x : %.16f\t dh : %.16f\t dx : %.16f\n", (*point), hx[0], (*point)*hx[1], dhdlna, dxdlna);
-//   // fflush(stdout);
-
-//   return hx;
-
-// }
-
-// Interpolate the values of x and h between the stored array points
-extern "C" double* handxofa_(double* point){
   if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
     printf("One of the global arrays is empty\n");
     exit(EXIT_FAILURE);
-  }
+  }  
 
   if((*point) < 0.0 || (*point) > 1.1){
     printf("Forbidden value of a : %.12f\n", (*point));
     exit(EXIT_FAILURE);
   }
 
-  // static double hx[2];
-  double* hx;
-  hx = (double*)malloc(2*sizeof(double));
-
-  double hxbis[2];
-
-  // Spline interpolation
-  if(coord == BARREIRA){
-    hx[0] = gsl_spline_eval(spline_h, *point, acc);
-    hx[1] = gsl_spline_eval(spline_x, *point, acc);
-    if(*point < 3e-6){
-      double a3 = (*point)*(*point)*(*point);
-      double hubble_LCDM = sqrt(om/a3+orad/(a3*(*point))+(1-om-orad));
-      if(fabs((hx[0]-hubble_LCDM)/hx[0])>1e-3) fprintf(stderr, "Warning : no continuity between LCDM and galileon background at very early time (a = %f, h_LCDM = %f and h_gal = %f)\n", (*point), hubble_LCDM, hx[0]);
-    }
-  } else if(coord == NEVEU){
-    hx[0] = gsl_spline_eval(spline_h, *point, acc);
-    hx[1] = gsl_spline_eval(spline_x, *point, acc);
-    // hx[0] = (hubble[i+1] - hubble[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + hubble[i];
-    // hx[1] = (xgalileon[i+1] - xgalileon[i])/(intvar[i+1]-intvar[i])*((*point) - intvar[i]) + xgalileon[i];
-
-  }
-
-  return hx;
-
-}
-
-// Function that returns x(a)
-extern "C" double GetX_(double* point){
-  
-  double* hx = (*point >= 9.99999e-7) ? handxofa_(point) : 0;
-  double xgal = (*point >= 9.99999e-7) ? (*point)*(*(hx+1)) : 0; // here take xgal as a function of ln(a)
+  double xgal = (*point)*gsl_spline_eval(spline_x, *point, acc);
 
   return xgal;
 
@@ -1109,20 +915,25 @@ extern "C" double GetX_(double* point){
 
 // Function that returns hbar(a)
 extern "C" double GetH_(double* point){
-  
-  double* hx = (*point >= 9.99999e-7) ? handxofa_(point) : 0;
-  double hbar = (*point >= 9.99999e-7) ? (*hx) : 0; // here take xgal as a function of ln(a)
+
+  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+    printf("One of the global arrays is empty\n");
+    exit(EXIT_FAILURE);
+  }  
+
+  if((*point) < 0.0 || (*point) > 1.1){
+    printf("Forbidden value of a : %.12f\n", (*point));
+    exit(EXIT_FAILURE);
+  }
+
+  double hbar = gsl_spline_eval(spline_h, *point, acc);
 
   return hbar;
 
 }
 
 // Functions that returns dh/dlna and dx/dlna
-extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb){
-
-  // static double dhdx[2];
-  double* dhdx = NULL;
-  dhdx = (double*) malloc(2*sizeof(double));
+extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb, double& dh, double& dx){
 
   // Define variables to save memory
   double a2 = (*point)*(*point);
@@ -1147,10 +958,8 @@ extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb){
   double lambda = 3*h2 + orad/(a2*a2) + c2/2*h2*xgal2 - 2*c3*h4*xgal3 + 7.5*c4*h6*xgal4 - 9*c5*h8*xgal5 - cG*h4*xgal2;
   double omega = 2*c3*h4*xgal2 - 12*c4*h6*xgal3 + 15*c5*h8*xgal4 + 4*cG*h4*(*xcamb);
 
-  dhdx[0] = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega); // dh/dlna
-  dhdx[1] = -(*xcamb)+(alpha*lambda-sigma*gamma)/(sigma*beta-alpha*omega); // dx/dlna
-
-  return dhdx;
+  dh = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega); // dh/dlna
+  dx = -(*xcamb)+(alpha*lambda-sigma*gamma)/(sigma*beta-alpha*omega); // dx/dlna
 
 }
 
@@ -1615,10 +1424,6 @@ extern "C" void freegal_(){
   hubble = std::vector<double>();
   xgalileon = std::vector<double>();
 
-  // free(intvar);
-  // free(hubble);
-  // free(xgalileon);
-
   printf("after -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
 
 }
@@ -1662,9 +1467,9 @@ int test(){
   //   fprintf(f, "%.16f ; %.16f ; %.16f\n", point, (*hx), (*(hx+1)));
   // }
 
-  // gsl_spline_free(spline_h);
-  // gsl_spline_free(spline_x);
-  // gsl_interp_accel_free(acc);  
+  gsl_spline_free(spline_h);
+  gsl_spline_free(spline_x);
+  gsl_interp_accel_free(acc);  
 
   return 0;
 

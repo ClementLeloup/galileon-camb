@@ -137,14 +137,6 @@
     !     Timing variables for testing purposes. Used if DebugMsgs=.true. in ModelParams
     real(sp) actual,timeprev,starttime
 
-    !Modified by Clement Leloup
-    integer i
-
-!    !Modified by Clement Leloup
-!    do i=1, 30000
-!       print *, intvar(i), hubble(i), xgalileon(i)
-!    end do
-
     WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0
 
     if (CP%WantCls) then
@@ -209,15 +201,18 @@
         ThisCT%NumSources = SourceNum
         ThisCT%ls = lSamp
 
-        !Modified by Clement Leloup
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
         !$OMP & PRIVATE(EV, q_ix)
-        !OMP & PRIVATE(EV, q_ix, hubble, xgalileon, intvar)
 
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
         !$OMP END PARAllEl DO
+
+        !Modified by Clement Leloup
+        if(CP%use_galileon) then
+           call freegal
+        end if
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -288,11 +283,6 @@
         end if
 
         call FreeSourceMem
-
-        !Modified by Clement Leloup
-        if(CP%use_galileon) then
-           call freegal
-        end if
 
         !Final calculations for CMB output unless want the Cl transfer functions only.
 
@@ -952,10 +942,7 @@
     real(dl) dgrho, dgrhogal,  dgq, dgqgal, dgpi, dgpigal, phi, deltagal
     real(dl) grho, gpres, dotdeltaf, dotdeltaqf
     real(kind=C_DOUBLE) xgal
-    real(dl) dh, dx, a, hub, lightspeed
-    type(C_PTR) :: cptr_to_dhdx
-    real(kind=C_DOUBLE), pointer :: dhdx(:)
-    integer OMP_GET_THREAD_NUM
+    real(dl) dh, dx, a, hub
 
     external dtauda
 
@@ -976,16 +963,12 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-!!        call CreateTxtFile('test_evolve.txt',1)
+        call CreateTxtFile('test_evolve.txt',1)
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
-            !print *, "wesh1"
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
-            !print *, "wesh2"
             yprime = 0
             call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
-!            call output(EV, y, j, tau, sources)
-            !print *, "a =", tauend, y(1), y(EV%w_ix), OMP_GET_THREAD_NUM()
             adotoa = 1/(y(1)*dtauda(y(1)))
             ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
             delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
@@ -993,17 +976,13 @@
 
             !Modified by Clement Leloup
             a = y(1)   
-            lightspeed = 2.99792458e8_dl
-            hub = adotoa/CP%h0*lightspeed/1000
             dgrho = grhob/y(1)*y(4) + grhoc/y(1)*y(3) + grhornomass/(y(1)*y(1))*y(EV%r_ix) + grhog/(y(1)*y(1))*y(EV%g_ix)
             dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
             dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
             if (CP%use_galileon) then
                xgal = GetX(a)
-               cptr_to_dhdx = GetdHdX(a, hub, xgal)
-               call C_F_POINTER(cptr_to_dhdx, dhdx, [2])
-               dh = dhdx(1)
-               dx = dhdx(2)  
+               hub = GetH(a)
+               call GetdHdX(a, hub, xgal, dh, dx)
                grho = (grhob/y(1)+grhoc/y(1)+grhornomass/(y(1)*y(1))+grhog/(y(1)*y(1))+grhogal(a, hub, xgal))
                gpres=(grhog/(y(1)*y(1))+grhor/(y(1)*y(1)))/3+gpresgal(a, hub, xgal, dh, dx)
 
@@ -1025,15 +1004,13 @@
             phi = -(dgrho + 3*dgq*adotoa/(EV%q))/((EV%q2)*2) - dgpi/(EV%q2)/2
 
             !Modified by Clement Leloup
-            !write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
-!!$            if (CP%use_galileon) then
-!!$               write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(a, hub, xgal), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, a, y(EV%w_ix+1), yprime(EV%w_ix+1)
-               !write (1,'(6F30.15)') y(1),y(EV%w_ix),y(EV%w_ix+1),sources(1),sources(2),sources(3)
-!!$            else
-!!$               write (1,'(6E30.15)') y(1), 0, 0,sources(1),sources(2),sources(3)
-!!$            end if
+            if (CP%use_galileon) then
+               write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(a, hub, xgal), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, a, y(EV%w_ix+1), yprime(EV%w_ix+1)
+            else
+               write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
+            end if
         end do
-!!$        close(1)
+        close(1)
         stop
     end if
 
@@ -1045,26 +1022,13 @@
 
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
-
-        !Modified by Clement Leloup
-        !print *, "tau : ", tauend
-
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
         .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
             Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
-
-           !Modified by Clement Leloup
-           !print *, "tau : ", tau
-           !print *, "a =", tauend, y(1), OMP_GET_THREAD_NUM()
-           !print *, "before", OMP_GET_THREAD_NUM()
-
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
             if (global_error_flag/=0) return
-
-            !Modified by Clement Leloup
-            !print *, "after", OMP_GET_THREAD_NUM()
 
             call output(EV,y,j,tau,sources)
             Src(EV%q_ix,1:SourceNum,j)=sources
@@ -1092,9 +1056,6 @@
         end if
 
     end do !time step loop
-
-    !Modified by Clement Leloup
-    !print *, "yo l'ami", EV%q
 
     end subroutine CalcScalarSources
 
