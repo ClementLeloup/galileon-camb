@@ -71,10 +71,11 @@ using namespace std;
 // Types of solving method
 enum solvmethod {NEVEU, BARREIRA};
 
-// Global vectors of the integration variable (a or z), h and x
-std::vector<double> intvar;
-std::vector<double> hubble;
-std::vector<double> xgalileon;
+// // Global vectors of the integration variable (a or z), h and x
+// std::vector<double> intvar;
+// std::vector<double> hubble;
+// std::vector<double> xgalileon;
+int nb = 29999; // number of a points using q0
 
 // Interpolation tools
 gsl_interp_accel* acc;
@@ -365,12 +366,12 @@ int calcValOmC2C3C4C5CGC0(double a, const double y[3], double f[3], void* params
 		       \status = 8 : failed to integrate
 		       \status = 9 : one of the global vectors is empty
 */
-int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
+int calcHubbleGalileon(double* intvar, double* xgalileon, double* hubble, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
-  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-    printf("One of the global arrays is empty\n");
-    return 9;
-  }
+  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+  //   printf("One of the global arrays is empty\n");
+  //   return 9;
+  // }
 
   int testPert;
   double h2, x1, x2, x3, a3;
@@ -391,7 +392,8 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
  
   double y[3] = { 1.0, 1.0, 0.0 };  //Inital value of integral
   double a = 1;
-  int nstep = min(hubble.size(),xgalileon.size());
+  // int nstep = min(hubble.size(),xgalileon.size());
+  int nstep = nb+1;
   double h = -1e-6; //Initial step guess
   double acurrtarg;
   int st;
@@ -478,17 +480,18 @@ int calcHubbleGalileon(double* grhormass, double* nu_masses, int* nu_mass_eigens
   \param[out] table of h 
   \param[out] table of x
 */
-void calcHubbleTracker(){
+void calcHubbleTracker(double* intvar, double* xgalileon, double* hubble){
  
-  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-    printf("One of the global arrays is empty\n");
-    return ;
-  }
+  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+  //   printf("One of the global arrays is empty\n");
+  //   return ;
+  // }
 
   bool useacoord = (coord == BARREIRA || coord == NEVEU);
   double op = (c2/2.0 - 6.0*c3 + 22.5*c4 - 21.0*c5 - 9*cG )/3.0; //Omega_phi
 
-  int nstep = min(hubble.size(),xgalileon.size());
+  // int nstep = min(hubble.size(),xgalileon.size());
+  int nstep = nb+1;
   for(int i = 0; i < nstep; ++i){
     double a2 = intvar[i]*intvar[i];
     hubble[i] = sqrt(0.5*(om/(a2*intvar[i])+orad/(a2*a2)-3*cG)+sqrt(op/9+3*cG+0.25*pow(3*cG-om/(a2*intvar[i])-orad/(a2*a2),2))); // Analytical solution for H
@@ -526,12 +529,12 @@ void calcHubbleTracker(){
 		       \status = 7 : tensorial constraints not satisfied
 		       \status = 8 : failed to integrate
 */
-int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
+int ageOfUniverse(double* intvar, double* xgalileon, double* hubble, double &age, double cond[4], double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
-  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-    printf("One of the global arrays is empty\n");
-    return 9;
-  }
+  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+  //   printf("One of the global arrays is empty\n");
+  //   return 9;
+  // }
 
   const double Gyr = 3.1556926e16; //Conversion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Conversion factor from Mpc to km
@@ -562,7 +565,8 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
   sys.params = &params;
 
   double a = intvar[1];
-  int nstep = intvar.size();
+  // int nstep = intvar.size();
+  int nstep = nb+2;
   double h = 1e-6; //Initial step guess
   double acurrtarg;
   double prec_age = 1/(intvar[1]*cond[0]); // initial value of 1/(a*Hbar)
@@ -659,12 +663,12 @@ int ageOfUniverse(double &age, double cond[4], double* grhormass, double* nu_mas
   \param[out] table of x(a)
 */
 
-int initCond(double &xi, double H[2], double ratio_rho, double age, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
+int initCond(double* intvar, double* xgalileon, double* hubble, double &xi, double H[2], double ratio_rho, double age, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
-  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-    printf("One of the global arrays is empty\n");
-    return 9;
-  }
+  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+  //   printf("One of the global arrays is empty\n");
+  //   return 9;
+  // }
 
   const double Gyr = 3.1556926e16; //Convertion factor from Gyr to sec
   const double Mpc = 3.085678e19; //Convertion factor from Mpc to km
@@ -677,7 +681,7 @@ int initCond(double &xi, double H[2], double ratio_rho, double age, double* grho
   cond[2] = 0;
   cond[3] = Mpc/Gyr*(1/H[1]-pow(intvar[1], 2)/2*(1/(intvar[0]*H[0])-1/(intvar[1]*H[1]))/(intvar[0]-intvar[1])); // Initial value of the age of the Universe, extrapolating linearly the integral
 
-  ageOfUniverse(computed_age, cond, grhormass, nu_masses, nu_mass_eigenstates);
+  ageOfUniverse(intvar, xgalileon, hubble, computed_age, cond, grhormass, nu_masses, nu_mass_eigenstates);
 
   printf("Initial condition for x is %e, it gives an age of the universe equal to %f\n", xi, computed_age);
 
@@ -692,10 +696,16 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
 
   fflush(stdout);
 
-  // Clear three global vectors
-  intvar.clear();
-  hubble.clear();
-  xgalileon.clear();
+  // // Clear three global vectors
+  // intvar.clear();
+  // hubble.clear();
+  // xgalileon.clear();
+
+  double* intvar;
+  // double* hubble;
+  // double* xgalileon;
+  double hubble[nb+1];
+  double xgalileon[nb+1];
 
   char** params = readParamsFile(infile);
 
@@ -758,16 +768,20 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     double apremin = 1e-7;
     double amin = 9.99999e-7;
     double amax = 1.;
-    intvar.push_back(apremin);
+    // intvar.push_back(apremin);
 
     // Fill the vector of a with a geometric sequence
-    double nb = 29998; // number of a points using q0
+    // double nb = 29998; // number of a points using q0
     double q = pow(amax/amin, 1./nb);
+    intvar = (double*) malloc((nb+2)*sizeof(double));
+    intvar[0] = apremin;
     for(int i = 0; i<=nb; i++){
-      intvar.push_back(amin*pow(q, i));
+      // intvar.push_back(amin*pow(q, i));
+      intvar[i+1] = amin*pow(q, i);
     }
 
-    printf("Number of points : %i\n", intvar.size());
+    // printf("Number of points : %i\n", intvar.size());
+    printf("Number of points : %i\n", nb+2);
 
     // Calculate initial conditions in H and ratio_rho
     double xi = 0;
@@ -804,11 +818,11 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
       xi = dotphi;
     }
 
-    hubble.resize(intvar.size()-1, 999999);
-    xgalileon.resize(intvar.size()-1, 999999);
+    // hubble.resize(intvar.size()-1, 999999);
+    // xgalileon.resize(intvar.size()-1, 999999);
 
     // Calculate initial conditions in x and fill hubble and x from then to now
-    status = initCond(xi, H, ratio_rho, age, grhormass, nu_masses, nu_mass_eigenstates);
+    status = initCond(intvar, xgalileon, hubble, xi, H, ratio_rho, age, grhormass, nu_masses, nu_mass_eigenstates);
 
     printf("\nstatus = %i\n", status);
 
@@ -820,35 +834,38 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     double amax = 1.;
 
     // Fill the vector of a with a geometric sequence
-    double nb = 29999; // number of a points using q0
+    // double nb = 29999; // number of a points using q0
     double q = pow(amin/amax, 1./nb);
+    intvar = (double*) malloc((nb+1)*sizeof(double));
     for(int i = 0; i<=nb; i++){
-      intvar.push_back(amax*pow(q, i));
+      // intvar.push_back(amax*pow(q, i));
+      intvar[i] = amax*pow(q, i);
     }
 
-    printf("Number of points : %i\n", intvar.size());
+    // printf("Number of points : %i\n", intvar.size());
+    printf("Number of points : %i\n", nb+1);
 
-    hubble.resize(intvar.size(), 999999);
-    xgalileon.resize(intvar.size(), 999999);
+    // hubble.resize(intvar.size(), 999999);
+    // xgalileon.resize(intvar.size(), 999999);
 
     // Integrate and fill hubble and x both when tracker and not tracker
     if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
     {
       printf("nu_mass_eigenstates : %d\n", (*nu_mass_eigenstates));
-      status = calcHubbleGalileon(grhormass, nu_masses, nu_mass_eigenstates);
+      status = calcHubbleGalileon(intvar, xgalileon, hubble, grhormass, nu_masses, nu_mass_eigenstates);
     }
     else {
-      calcHubbleTracker();
+      calcHubbleTracker(intvar, xgalileon, hubble);
     }
 
     printf("\nstatus = %i\n", status);
 
   }
 
-  if(status != 0){
-    hubble.clear();
-    xgalileon.clear();
-  }
+  // if(status != 0){
+  //   hubble.clear();
+  //   xgalileon.clear();
+  // }
 
   // FILE* f = fopen(outfile, "w");
   // for(int i = 0; i<intvar.size()-1; i++){
@@ -871,24 +888,46 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
   //   fprintf(f, "%.16f ; %.16f ; %.16f ; %.16f ; %.16f ; %.16f\n", intvar[i+1], hubble[i], xgalileon[i], hubble_LCDM, ratio, weff);
   // }
 
-  double hubble_interp[hubble.size()];
-  double x_interp[xgalileon.size()];
-  double intvar_interp[hubble.size()];
+  // double hubble_interp[hubble.size()];
+  // double x_interp[xgalileon.size()];
+  // double intvar_interp[hubble.size()];
+
+  // if(coord == BARREIRA){
+  //   std::copy(hubble.begin(), hubble.end(), hubble_interp);
+  //   std::copy(xgalileon.begin(), xgalileon.end(), x_interp);
+  //   std::copy(intvar.begin()+1, intvar.end(), intvar_interp);
+  // } else if(coord == NEVEU){
+  //   std::copy(hubble.rbegin(), hubble.rend(), hubble_interp);
+  //   std::copy(xgalileon.rbegin(), xgalileon.rend(), x_interp);
+  //   std::copy(intvar.rbegin(), intvar.rend(), intvar_interp);
+  // }
   
+  // spline_h = gsl_spline_alloc(gsl_interp_cspline, hubble.size());
+  // spline_x = gsl_spline_alloc(gsl_interp_cspline, xgalileon.size());  
+  // gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
+  // gsl_spline_init(spline_x, intvar_interp, x_interp, xgalileon.size());
+
+  spline_h = gsl_spline_alloc(gsl_interp_cspline, nb+1);
+  spline_x = gsl_spline_alloc(gsl_interp_cspline, nb+1);
   if(coord == BARREIRA){
-    std::copy(hubble.begin(), hubble.end(), hubble_interp);
-    std::copy(xgalileon.begin(), xgalileon.end(), x_interp);
-    std::copy(intvar.begin()+1, intvar.end(), intvar_interp);
+    double intvar_interp[nb+1];
+    for(int i = 0; i<=nb; i++){intvar_interp[i] = intvar[i+1];}
+    gsl_spline_init(spline_h, intvar_interp, hubble, nb+1);
+    gsl_spline_init(spline_x, intvar_interp, xgalileon, nb+1);
   } else if(coord == NEVEU){
-    std::copy(hubble.rbegin(), hubble.rend(), hubble_interp);
-    std::copy(xgalileon.rbegin(), xgalileon.rend(), x_interp);
-    std::copy(intvar.rbegin(), intvar.rend(), intvar_interp);
+    double intvar_interp[nb+1];
+    double hubble_interp[nb+1];
+    double xgalileon_interp[nb+1];
+    for(int i = 0; i<=nb; i++){
+      intvar_interp[i] = intvar[nb-i];
+      hubble_interp[i] = hubble[nb-i];
+      xgalileon_interp[i] = xgalileon[nb-i];
+    }
+    gsl_spline_init(spline_h, intvar_interp, hubble_interp, nb+1);
+    gsl_spline_init(spline_x, intvar_interp, xgalileon_interp, nb+1);
   }
-  
-  spline_h = gsl_spline_alloc(gsl_interp_cspline, hubble.size());
-  spline_x = gsl_spline_alloc(gsl_interp_cspline, xgalileon.size());  
-  gsl_spline_init(spline_h, intvar_interp, hubble_interp, hubble.size());
-  gsl_spline_init(spline_x, intvar_interp, x_interp, xgalileon.size());
+
+  free(intvar);
 
   return status;
   
@@ -897,10 +936,10 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
 // Function that returns x(a)
 extern "C" double GetX_(double* point){
 
-  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-    printf("One of the global arrays is empty\n");
-    exit(EXIT_FAILURE);
-  }  
+  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+  //   printf("One of the global arrays is empty\n");
+  //   exit(EXIT_FAILURE);
+  // }  
 
   if((*point) < 0.0 || (*point) > 1.1){
     printf("Forbidden value of a : %.12f\n", (*point));
@@ -916,10 +955,10 @@ extern "C" double GetX_(double* point){
 // Function that returns hbar(a)
 extern "C" double GetH_(double* point){
 
-  if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
-    printf("One of the global arrays is empty\n");
-    exit(EXIT_FAILURE);
-  }  
+  // if(intvar.size() == 0 || hubble.size() == 0 || xgalileon.size() == 0){
+  //   printf("One of the global arrays is empty\n");
+  //   exit(EXIT_FAILURE);
+  // }  
 
   if((*point) < 0.0 || (*point) > 1.1){
     printf("Forbidden value of a : %.12f\n", (*point));
@@ -1418,13 +1457,13 @@ extern "C" void freegal_(){
   gsl_spline_free(spline_x);
   gsl_interp_accel_free(acc);
 
-  printf("before -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
+  // printf("before -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
 
-  intvar = std::vector<double>();
-  hubble = std::vector<double>();
-  xgalileon = std::vector<double>();
+  // intvar = std::vector<double>();
+  // hubble = std::vector<double>();
+  // xgalileon = std::vector<double>();
 
-  printf("after -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
+  // printf("after -> size a : %i, size hubble : %i, size x : %i\n", intvar.size(), hubble.size(), xgalileon.size());
 
 }
 
