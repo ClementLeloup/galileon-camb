@@ -120,7 +120,7 @@
 
     !Modified by Clement Leloup
     real(dl) :: fixq = 0._dl !Debug output of one q
-    !real(dl) :: fixq = 0.01_dl !Debug output of one q
+    !real(dl) :: fixq = 1.0_dl !Debug output of one q
 
     real(dl) :: ALens = 1._dl
 
@@ -209,10 +209,10 @@
         end do
         !$OMP END PARAllEl DO
 
-        !Modified by Clement Leloup
-        if(CP%use_galileon) then
-           call freegal
-        end if
+!        !Modified by Clement Leloup
+!        if(CP%use_galileon) then
+!           call freegal
+!        end if
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -283,6 +283,11 @@
         end if
 
         call FreeSourceMem
+
+        !Modified by Clement Leloup
+        if(CP%use_galileon) then
+           call freegal
+        end if
 
         !Final calculations for CMB output unless want the Cl transfer functions only.
 
@@ -960,59 +965,63 @@
     tau=taustart
     ind=1
 
-    !!Example code for plotting out variable evolution
-    if (fixq/=0._dl) then
-        tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('test_evolve.txt',1)
-        do j=1,1000
-            tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
-            call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
-            yprime = 0
-            call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
-            adotoa = 1/(y(1)*dtauda(y(1)))
-            ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
-            delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
-            growth= ddelta/delta/adotoa
-
-            !Modified by Clement Leloup
-            a = y(1)   
-            dgrho = grhob/y(1)*y(4) + grhoc/y(1)*y(3) + grhornomass/(y(1)*y(1))*y(EV%r_ix) + grhog/(y(1)*y(1))*y(EV%g_ix)
-            dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
-            dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
-            if (CP%use_galileon) then
-               xgal = GetX(a)
-               hub = GetH(a)
-               call GetdHdX(a, hub, xgal, dh, dx)
-               grho = (grhob/y(1)+grhoc/y(1)+grhornomass/(y(1)*y(1))+grhog/(y(1)*y(1))+grhogal(a, hub, xgal))
-               gpres=(grhog/(y(1)*y(1))+grhor/(y(1)*y(1)))/3+gpresgal(a, hub, xgal, dh, dx)
-
-               dgrhogal = Chigal(a, hub, xgal, dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), EV%q)
-               dgrho = dgrho + dgrhogal
-               dgqgal = qgal(a, hub, xgal, dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), EV%q)
-               dgq = dgq + dgqgal
-               dgpigal = Pigal(a, hub, xgal, dh, dx, dgrho, dgq, dgpi, y(2), y(EV%w_ix), EV%q)
-               dgpi = dgpi + dgpigal
-               deltagal = 0
-               if (y(1) .ge. 9.99999d-7) then
-                  !deltagal = dgrhogal/grhogal(y(1))
-                  !deltagal = (dgrho - grhornomass/(y(1)*y(1))*y(EV%r_ix) - grhog/(y(1)*y(1))*y(EV%g_ix))/(grhob/y(1)+grhoc/y(1)+grhogal(y(1)))
-                  deltagal = dgrho/grho
-               end if
-
-            end if
-
-            phi = -(dgrho + 3*dgq*adotoa/(EV%q))/((EV%q2)*2) - dgpi/(EV%q2)/2
-
-            !Modified by Clement Leloup
-            if (CP%use_galileon) then
-               write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(a, hub, xgal), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, a, y(EV%w_ix+1), yprime(EV%w_ix+1)
-            else
-               write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
-            end if
-        end do
-        close(1)
-        stop
-    end if
+!!$    !!Example code for plotting out variable evolution
+!!$    if (fixq/=0._dl) then
+!!$        tol1=tol/exp(AccuracyBoost-1)
+!!$        call CreateTxtFile('evolve/evolve_q1_lcdm.txt',1)
+!!$        do j=1,1000
+!!$            tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
+!!$            !print *, tau, y(1)
+!!$            call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+!!$            yprime = 0
+!!$            call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+!!$            adotoa = 1/(y(1)*dtauda(y(1)))
+!!$            ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
+!!$            delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
+!!$            growth= ddelta/delta/adotoa
+!!$
+!!$            !Modified by Clement Leloup
+!!$            a = y(1)   
+!!$            dgrho = grhob/y(1)*y(4) + grhoc/y(1)*y(3) + grhornomass/(y(1)*y(1))*y(EV%r_ix) + grhog/(y(1)*y(1))*y(EV%g_ix)
+!!$            dgq = grhob/y(1)*y(5) + grhornomass/(y(1)*y(1))*y(EV%r_ix+1) + grhog/(y(1)*y(1))*y(EV%g_ix+1)
+!!$            dgpi = grhornomass/(y(1)*y(1))*y(EV%r_ix+2) + grhog/(y(1)*y(1))*y(EV%g_ix+2)
+!!$            grho = grhob/y(1)+grhoc/y(1)+grhornomass/(y(1)*y(1))+grhog/(y(1)*y(1))
+!!$            if (CP%use_galileon) then
+!!$               xgal = GetX(a)
+!!$               hub = GetH(a)
+!!$               call GetdHdX(a, hub, xgal, dh, dx)
+!!$               grho = grho+grhogal(a, hub, xgal)
+!!$               gpres=(grhog/(y(1)*y(1))+grhor/(y(1)*y(1)))/3+gpresgal(a, hub, xgal, dh, dx)
+!!$
+!!$               dgrhogal = Chigal(a, hub, xgal, dgrho, y(2), y(EV%w_ix), y(EV%w_ix+1), EV%q)
+!!$               dgrho = dgrho + dgrhogal
+!!$               dgqgal = qgal(a, hub, xgal, dgq, y(2), y(EV%w_ix), y(EV%w_ix+1), EV%q)
+!!$               dgq = dgq + dgqgal
+!!$               dgpigal = Pigal(a, hub, xgal, dh, dx, dgrho, dgq, dgpi, y(2), y(EV%w_ix), EV%q)
+!!$               dgpi = dgpi + dgpigal
+!!$               deltagal = 0
+!!$               if (y(1) .ge. 9.99999d-7) then
+!!$                  !deltagal = dgrhogal/grhogal(y(1))
+!!$                  !deltagal = (dgrho - grhornomass/(y(1)*y(1))*y(EV%r_ix) - grhog/(y(1)*y(1))*y(EV%g_ix))/(grhob/y(1)+grhoc/y(1)+grhogal(y(1)))
+!!$               end if
+!!$               !deltagal = dgrho/grho
+!!$
+!!$            end if
+!!$
+!!$            deltagal = dgrho/grho
+!!$            phi = -(dgrho + 3*dgq*adotoa/(EV%q))/((EV%q2)*2) - dgpi/(EV%q2)/2
+!!$
+!!$            !Modified by Clement Leloup
+!!$            if (CP%use_galileon) then
+!!$               write (1,'(12E15.5)') tau, y(EV%w_ix), grhogal(a, hub, xgal), dgrhogal, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, a, y(EV%w_ix+1), yprime(EV%w_ix+1)
+!!$            else
+!!$               !write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
+!!$               write (1,'(12E15.5)') tau, 0, 0, 0, deltagal, dgrho/((EV%q2)*2), 3*dgq*adotoa/(EV%q)/((EV%q2)*2), dgpi/(EV%q2)/2, phi, a, 0, 0
+!!$            end if
+!!$        end do
+!!$        !close(1)
+!!$        stop
+!!$    end if
 
     !     Begin timestep loop.
 
@@ -1032,6 +1041,7 @@
 
             call output(EV,y,j,tau,sources)
             Src(EV%q_ix,1:SourceNum,j)=sources
+
 
             !     Calculation of transfer functions.
 101         if (CP%WantTransfer.and.itf <= CP%Transfer%num_redshifts) then

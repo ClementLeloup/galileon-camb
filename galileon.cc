@@ -102,6 +102,7 @@ double Mp = sqrt(1/(8.*M_PI*6.6738e-11));
 extern"C" void massivenu_mp_nu_rho_(double* am, double* rhonu);
 extern"C" void massivenu_mp_nu_background_(double* am, double* rhonu, double* pnu);
 extern"C" void massivenu_mp_nurhopres_(double* am, double* rhonu, double* pnu);
+extern"C" double massivenu_mp_nu_dp_(double* am, double* adotoa, double* pnu);
 
 // Return absolute max of vector
 double maxVec(std::vector<double> vec){
@@ -620,6 +621,7 @@ int ageOfUniverse(double* intvar, double* xgalileon, double* hubble, double &age
     }
 
     OmTest = om/(a3*h2);
+    printf("a : %f\tOmegaP : %f\tOmegam : %f\t h : %f\tx : %f\n", intvar[i], OmegaP, OmTest, y[0], intvar[i]*y[1]);
     if(OmegaP<0) return 5;
     if ( fabs((OmegaM - OmTest)/OmTest)>1e-4 ) {
       fprintf(stderr, "Integration error : %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", om, orad, c2, c3, c4, c5, cG, c0, OmTest, OmegaM, OmegaP, intvar[i], h2, fabs((OmegaM - OmTest)/OmTest));
@@ -845,11 +847,13 @@ extern "C" int arrays_(char* infile, double* omegar, double* omegam, double* H0i
     // printf("Number of points : %i\n", intvar.size());
     printf("Number of points : %i\n", nb+1);
 
+    printf("tracker criterion : %.16f\n", fabs(c2-6*c3+18*c4-15*c5-6*cG));
+
     // hubble.resize(intvar.size(), 999999);
     // xgalileon.resize(intvar.size(), 999999);
 
     // Integrate and fill hubble and x both when tracker and not tracker
-    if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-8)
+    if(fabs(c2-6*c3+18*c4-15*c5-6*cG)>1e-7)
     {
       printf("nu_mass_eigenstates : %d\n", (*nu_mass_eigenstates));
       status = calcHubbleGalileon(intvar, xgalileon, hubble, grhormass, nu_masses, nu_mass_eigenstates);
@@ -972,7 +976,7 @@ extern "C" double GetH_(double* point){
 }
 
 // Functions that returns dh/dlna and dx/dlna
-extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb, double& dh, double& dx){
+extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb, double& dh, double& dx, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
   // Define variables to save memory
   double a2 = (*point)*(*point);
@@ -995,6 +999,19 @@ extern "C" double* GetdHdX_(double* point, double* hcamb, double* xcamb, double&
   double beta = c2/6*h2 -2*c3*h4*(*xcamb) + 9*c4*h6*xgal2 - 10*c5*h8*xgal3 - cG*h4;
   double sigma = 2*h + 2*c3*h3*xgal3 - 15*c4*h5*xgal4 + 21*c5*h7*xgal5 + 6*cG*h3*xgal2;
   double lambda = 3*h2 + orad/(a2*a2) + c2/2*h2*xgal2 - 2*c3*h4*xgal3 + 7.5*c4*h6*xgal4 - 9*c5*h8*xgal5 - cG*h4*xgal2;
+
+  // Contribution from massive neutrinos
+  if((*nu_mass_eigenstates)>0){
+    for(int i=0; i<(*nu_mass_eigenstates); i++){
+      double rhonu = 0;
+      double pnu = 0;
+      double am = (*point)*nu_masses[i];
+      massivenu_mp_nu_background_(&am, &rhonu, &pnu);
+      lambda += grhormass[i]*pnu/(a2*a2*h0*h0);
+      // printf("i : %d \t a : %.16f \t am : %.16f \t rhonu : %.16f \t lambda_numass : %.16f\n", i, a, am, rhonu, grhormass[i]*pnu/(a2*a2*h0*h0));
+    }
+  }
+
   double omega = 2*c3*h4*xgal2 - 12*c4*h6*xgal3 + 15*c5*h8*xgal4 + 4*cG*h4*(*xcamb);
 
   dh = (omega*gamma-lambda*beta)/(sigma*beta-alpha*omega); // dh/dlna
@@ -1269,7 +1286,7 @@ extern "C" double dphisecond_(double* point, double* hcamb, double* xcamb, doubl
 }
 
 // Calculate the conformal time derivative of pigal
-extern "C" double pigalprime_(double* point, double* hcamb, double* xcamb, double* dhcamb, double* dxcamb, double* dgrho, double* dgq, double* dgpi, double* pidot, double* eta, double* dphi, double* dphiprime, double* k, double* grho, double* gpres){
+extern "C" double pigalprime_(double* point, double* hcamb, double* xcamb, double* dhcamb, double* dxcamb, double* dgrho, double* dgq, double* dgpi, double* pidot, double* eta, double* dphi, double* dphiprime, double* k, double* grho, double* gpres, double* grhormass, double* nu_masses, int* nu_mass_eigenstates){
 
   double hoft = (*hcamb)/(*point);
 
@@ -1301,6 +1318,7 @@ extern "C" double pigalprime_(double* point, double* hcamb, double* xcamb, doubl
   double beta = c2/6*hoft2 -2*c3*hoft4*(*xcamb) + 9*c4*hoft6*xgal2 - 10*c5*hoft8*xgal3 - cG*hoft4;
   double delta = 2*hoft + 2*c3*hoft3*xgal3 - 15*c4*hoft5*xgal4 + 21*c5*hoft7*xgal5 + 6*cG*hoft3*xgal2;
   double lambda = 3*hoft2 + orad/(a2*a2) + c2/2*hoft2*xgal2 - 2*c3*hoft4*xgal3 + 7.5*c4*hoft6*xgal4 - 9*c5*hoft8*xgal5 - cG*hoft4*xgal2;
+
   double omega = 2*c3*hoft4*xgal2 - 12*c4*hoft6*xgal3 + 15*c5*hoft8*xgal4 + 4*cG*hoft4*(*xcamb);
 
   double hprime = (*point)*(*dhcamb) + (*hcamb);
@@ -1312,6 +1330,20 @@ extern "C" double pigalprime_(double* point, double* hcamb, double* xcamb, doubl
   double beta_prime = (c2/3*hoft - 8*c3*hoft3*(*xcamb) + 54*c4*hoft5*xgal2 - 80*c5*hoft7*xgal3 - 4*cG*hoft3)*(hprime-(*hcamb))/(*point) + (-2*c3*hoft4 + 18*c4*hoft6*(*xcamb) - 30*c5*hoft8*xgal2)*(*dxcamb);
   double delta_prime = (2 + 6*c3*hoft2*xgal3 - 75*c4*hoft4*xgal4 + 147*c5*hoft6*xgal5 + 18*cG*hoft2*xgal2)*(hprime-(*hcamb))/(*point) + (6*c3*hoft3*xgal2 - 60*c4*hoft5*xgal3 + 105*c5*hoft7*xgal4 + 12*cG*hoft3*(*xcamb))*(*dxcamb);
   double lambda_prime = -4*orad/a4 + (6*hoft + c2*hoft*xgal2 - 8*c3*hoft3*xgal3 + 45*c4*hoft5*xgal4 - 72*c5*hoft7*xgal5 - 4*cG*hoft3*xgal2)*(hprime-(*hcamb))/(*point) + (c2*hoft2*(*xcamb) - 6*c3*hoft4*xgal2 + 30*c4*hoft6*xgal3 - 45*c5*hoft8*xgal4 - 2*cG*hoft4*(*xcamb))*(*dxcamb);
+
+  // Contribution from massive neutrinos
+  if((*nu_mass_eigenstates)>0){
+    for(int i=0; i<(*nu_mass_eigenstates); i++){
+      double pnu = 0;
+      double rhonu = 0;
+      double am = (*point)*nu_masses[i];
+      massivenu_mp_nu_background_(&am, &rhonu, &pnu);
+      lambda += grhormass[i]*pnu/(a2*a2*h0*h0);
+      double dpnu = massivenu_mp_nu_dp_(&am, hcamb, &pnu);
+      lambda_prime += (dpnu-4*pnu*(*hcamb))*grhormass[i]/(a2*a2*h0*h0);
+    }
+  }
+
   double omega_prime = (8*c3*hoft3*xgal2 - 72*c4*hoft5*xgal3 + 120*c5*hoft7*xgal4 + 16*cG*hoft3*(*xcamb))*(hprime-(*hcamb))/(*point) + (4*c3*hoft4*(*xcamb) - 36*c4*hoft6*xgal2 + 60*c5*hoft8*xgal3 + 4*cG*hoft4)*(*dxcamb);
 
   double xprimedot = h0*(*hcamb)*(-(*dxcamb) + ((alpha_prime*lambda + alpha*lambda_prime - delta_prime*gamma - delta*gamma_prime)*(delta*beta-alpha*omega) - (alpha*lambda-delta*gamma)*(delta_prime*beta + delta*beta_prime - alpha_prime*omega - alpha*omega_prime))/pow(delta*beta-alpha*omega, 2));
